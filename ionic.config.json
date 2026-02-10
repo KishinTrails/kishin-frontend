@@ -1,0 +1,7 @@
+{
+  "name": "kishin-frontend",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "vue-vite"
+}
