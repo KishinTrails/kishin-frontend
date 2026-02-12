@@ -8,66 +8,131 @@
         <div class="controls">
           <h3>🗺️ Fog of War</h3>
           
-          <div class="control-group">
-            <label>Mode</label>
-            <ion-button 
-              expand="block" 
-              @click="followTouch = !followTouch"
-              :color="followTouch ? 'primary' : 'secondary'"
+          <!-- Mode Tabs -->
+          <div class="mode-tabs">
+            <button 
+              class="tab-button" 
+              :class="{ active: isDevMode }"
+              @click="toggleMode"
             >
-              {{ followTouch ? '👆 Touch Mode' : '📍 GPS Mode' }}
-            </ion-button>
+              🔧 Dev Playground
+            </button>
+            <button 
+              class="tab-button" 
+              :class="{ active: !isDevMode }"
+              @click="toggleMode"
+            >
+              🔒 Locked Production
+            </button>
           </div>
 
-          <div v-if="!followTouch" class="control-group">
-            <label>Active Viewports ({{ gpsCoordinates.length }})</label>
-            <div class="gps-list">
-              <div v-for="(coord, index) in gpsCoordinates" :key="index" class="gps-item">
-                📍 {{ coord.name }} ({{ coord.lat.toFixed(2) }}, {{ coord.lng.toFixed(2) }})
+          <!-- Development Mode Content -->
+          <div v-if="isDevMode" class="tab-content">
+            <div class="control-group">
+              <label>Active Viewports ({{ gpsCoordinates.length }})</label>
+              <div class="gps-list">
+                <div v-for="(coord, index) in gpsCoordinates" :key="index" class="gps-item">
+                  📍 {{ coord.name }} ({{ coord.lat.toFixed(2) }}, {{ coord.lng.toFixed(2) }})
+                </div>
+              </div>
+            </div>
+            
+            <div class="control-group">
+              <label>View Distance (Base)</label>
+              <ion-range 
+                v-model="baseCircleRadius" 
+                :min="50" 
+                :max="400" 
+                :step="10"
+                :pin="true"
+                @ionChange="updateCircleRadius"
+              ></ion-range>
+              <div class="value-display">{{ baseCircleRadius }}px (actual: {{ Math.round(circleRadius) }}px)</div>
+            </div>
+
+            <div class="control-group">
+              <label>Current Zoom Level</label>
+              <div class="value-display zoom-display">{{ currentZoom.toFixed(2) }}</div>
+            </div>
+
+            <div class="control-group">
+              <label>Fog Opacity</label>
+              <ion-range 
+                v-model="fogOpacity" 
+                :min="0" 
+                :max="1" 
+                :step="0.05"
+                :pin="true"
+              ></ion-range>
+              <div class="value-display">{{ (fogOpacity * 100).toFixed(0) }}%</div>
+            </div>
+
+            <div class="control-group">
+              <label>Edge Blur</label>
+              <ion-range 
+                v-model="edgeBlur" 
+                :min="0" 
+                :max="100" 
+                :step="5"
+                :pin="true"
+              ></ion-range>
+              <div class="value-display">{{ edgeBlur }}px</div>
+            </div>
+
+            <div class="control-group">
+              <label>🔍 Debug Options</label>
+              <div class="debug-options">
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="showCircleOutlines">
+                  <span>Show circle outlines (red)</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" v-model="showCenterDots">
+                  <span>Show center dots</span>
+                </label>
               </div>
             </div>
           </div>
-          
-          <div class="control-group">
-            <label>View Distance (Base)</label>
-            <ion-range 
-              v-model="baseCircleRadius" 
-              :min="50" 
-              :max="400" 
-              :step="10"
-              :pin="true"
-              @ionChange="updateCircleRadius"
-            ></ion-range>
-            <div class="value-display">{{ baseCircleRadius }}px (actual: {{ Math.round(circleRadius) }}px)</div>
-          </div>
 
-          <div class="control-group">
-            <label>Current Zoom Level</label>
-            <div class="value-display zoom-display">{{ currentZoom.toFixed(2) }}</div>
-          </div>
+          <!-- Locked Production Mode Content -->
+          <div v-else class="tab-content locked-content">
+            <div class="locked-info">
+              <p><strong>🔒 Production Mode Active</strong></p>
+              <p>All settings are locked to production values.</p>
+            </div>
 
-          <div class="control-group">
-            <label>Fog Opacity</label>
-            <ion-range 
-              v-model="fogOpacity" 
-              :min="0" 
-              :max="1" 
-              :step="0.05"
-              :pin="true"
-            ></ion-range>
-            <div class="value-display">{{ (fogOpacity * 100).toFixed(0) }}%</div>
-          </div>
+            <div class="control-group">
+              <label>Active Viewports</label>
+              <div class="gps-list">
+                <div v-for="(coord, index) in gpsCoordinates" :key="index" class="gps-item">
+                  📍 {{ coord.name }} ({{ coord.lat.toFixed(2) }}, {{ coord.lng.toFixed(2) }})
+                </div>
+              </div>
+            </div>
 
-          <div class="control-group">
-            <label>Edge Blur</label>
-            <ion-range 
-              v-model="edgeBlur" 
-              :min="0" 
-              :max="100" 
-              :step="5"
-              :pin="true"
-            ></ion-range>
-            <div class="value-display">{{ edgeBlur }}px</div>
+            <div class="settings-readonly">
+              <h4>Current Settings:</h4>
+              <div class="setting-item">
+                <span class="setting-label">Base Radius:</span>
+                <span class="setting-value">{{ baseCircleRadius }}px</span>
+              </div>
+              <div class="setting-item">
+                <span class="setting-label">Fog Opacity:</span>
+                <span class="setting-value">{{ (fogOpacity * 100).toFixed(0) }}%</span>
+              </div>
+              <div class="setting-item">
+                <span class="setting-label">Edge Blur:</span>
+                <span class="setting-value">{{ edgeBlur }}px</span>
+              </div>
+              <div class="setting-item">
+                <span class="setting-label">Fog Color:</span>
+                <span class="setting-value">{{ fogColor }}</span>
+              </div>
+              <div class="setting-item">
+                <span class="setting-label">Zoom Level:</span>
+                <span class="setting-value">{{ currentZoom.toFixed(2) }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -76,259 +141,138 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, shallowRef, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent, IonRange, IonButton } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
+// =============================================================================
+// PRODUCTION SETTINGS - These values are used when in LOCKED mode
+// =============================================================================
+const PRODUCTION_SETTINGS = {
+  baseCircleRadius: 200,
+  fogOpacity: 0.85,
+  fogColor: '#1a1a1a',
+  edgeBlur: 20,
+  gpsCoordinates: [
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+{ lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
+  ]
+};
+// =============================================================================
+
 // Refs
 const mapContainer = ref<HTMLElement | null>(null);
 const fogCanvas = ref<HTMLCanvasElement | null>(null);
-const map = ref<maplibregl.Map | null>(null);
-const fogCtx = ref<CanvasRenderingContext2D | null>(null);
+const map = shallowRef<maplibregl.Map | null>(null);
+const fogCtx = shallowRef<CanvasRenderingContext2D | null>(null);
 
-// State
-const baseCircleRadius = ref(150); // Base radius at zoom level 1
-const circleRadius = ref(150); // Actual calculated radius
-const fogOpacity = ref(0.85);
-const fogColor = ref('#1a1a1a');
-const edgeBlur = ref(30);
-const followTouch = ref(false); // Disabled by default when using GPS coordinates
-const touchX = ref(0);
-const touchY = ref(0);
+// Mode toggle (true = development playground, false = locked production)
+const isDevMode = ref(true);
+
+// Debug options (only available in dev mode)
+const showCircleOutlines = ref(false);
+const showCenterDots = ref(false);
+
+// State (editable in dev mode, locked in production mode)
+const baseCircleRadius = ref(PRODUCTION_SETTINGS.baseCircleRadius);
+const circleRadius = ref(250); // Calculated dynamically
+const fogOpacity = ref(PRODUCTION_SETTINGS.fogOpacity);
+const fogColor = ref(PRODUCTION_SETTINGS.fogColor);
+const edgeBlur = ref(PRODUCTION_SETTINGS.edgeBlur);
 const animationFrame = ref<number | null>(null);
 const currentZoom = ref(4);
 
-// GPS coordinates for viewports (add your coordinates here)
-const gpsCoordinates = ref([
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-  { lat: 48.85542074268142, lng: 2.345938844267552, name: '' },
-]);
+// GPS coordinates for viewports
+const gpsCoordinates = ref([...PRODUCTION_SETTINGS.gpsCoordinates]);
 
 // Store screen positions for each GPS coordinate
 const viewportPositions = ref<Array<{ x: number; y: number; name: string }>>([]);
@@ -403,10 +347,6 @@ const initFogCanvas = () => {
   
   fogCtx.value = fogCanvas.value.getContext('2d');
   resizeFogCanvas();
-  
-  // Initialize touch position to center
-  touchX.value = window.innerWidth / 2;
-  touchY.value = window.innerHeight / 2;
 };
 
 const resizeFogCanvas = () => {
@@ -448,28 +388,29 @@ const updateViewportPositions = () => {
   });
 };
 
+const applyProductionSettings = () => {
+  // Apply all production settings when switching to locked mode
+  baseCircleRadius.value = PRODUCTION_SETTINGS.baseCircleRadius;
+  fogOpacity.value = PRODUCTION_SETTINGS.fogOpacity;
+  fogColor.value = PRODUCTION_SETTINGS.fogColor;
+  edgeBlur.value = PRODUCTION_SETTINGS.edgeBlur;
+  gpsCoordinates.value = [...PRODUCTION_SETTINGS.gpsCoordinates];
+  
+  // Recalculate everything
+  updateCircleRadius();
+  updateViewportPositions();
+};
+
+const toggleMode = () => {
+  isDevMode.value = !isDevMode.value;
+  
+  // When switching to locked mode, apply production settings
+  if (!isDevMode.value) {
+    applyProductionSettings();
+  }
+};
+
 const setupEventListeners = () => {
-  // Touch events for mobile
-  const handleTouch = (e: TouchEvent) => {
-    if (followTouch.value && e.touches.length > 0) {
-      // Prevent default to avoid scrolling
-      e.preventDefault();
-      touchX.value = e.touches[0].clientX;
-      touchY.value = e.touches[0].clientY;
-    }
-  };
-
-  window.addEventListener('touchstart', handleTouch, { passive: false });
-  window.addEventListener('touchmove', handleTouch, { passive: false });
-
-  // Mouse events for desktop testing
-  window.addEventListener('mousemove', (e: MouseEvent) => {
-    if (followTouch.value) {
-      touchX.value = e.clientX;
-      touchY.value = e.clientY;
-    }
-  });
-
   // Handle window resize (orientation changes on mobile)
   window.addEventListener('resize', () => {
     resizeFogCanvas();
@@ -505,38 +446,58 @@ const drawFog = () => {
   const innerRadius = Math.max(0, radius - blur);
   const outerRadius = radius;
 
-  // Draw a circle for each viewport position
-  if (followTouch.value) {
-    // If following touch, draw single circle at touch position
+  // Draw circles at GPS-based viewport positions
+  viewportPositions.value.forEach(pos => {
     const gradient = ctx.createRadialGradient(
-      touchX.value, touchY.value, innerRadius,
-      touchX.value, touchY.value, outerRadius
+      pos.x, pos.y, innerRadius,
+      pos.x, pos.y, outerRadius
     );
     gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
     gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
     ctx.beginPath();
-    ctx.arc(touchX.value, touchY.value, outerRadius, 0, Math.PI * 2);
+    ctx.arc(pos.x, pos.y, outerRadius, 0, Math.PI * 2);
     ctx.fillStyle = gradient;
     ctx.fill();
-  } else {
-    // Draw circles at GPS-based viewport positions
-    viewportPositions.value.forEach(pos => {
-      const gradient = ctx.createRadialGradient(
-        pos.x, pos.y, innerRadius,
-        pos.x, pos.y, outerRadius
-      );
-      gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
-      gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, outerRadius, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
-    });
-  }
+  });
 
   ctx.restore();
+
+  // Draw debug visualizations (after restoring context)
+  if (isDevMode.value && (showCircleOutlines.value || showCenterDots.value)) {
+    ctx.save();
+    
+    viewportPositions.value.forEach(pos => {
+      // Draw red circle outline
+      if (showCircleOutlines.value) {
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, outerRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // Draw center dot
+      if (showCenterDots.value) {
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = 'red';
+        ctx.fill();
+        
+        // Draw a small cross for precision
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pos.x - 10, pos.y);
+        ctx.lineTo(pos.x + 10, pos.y);
+        ctx.moveTo(pos.x, pos.y - 10);
+        ctx.lineTo(pos.x, pos.y + 10);
+        ctx.stroke();
+      }
+    });
+    
+    ctx.restore();
+  }
 };
 
 const hexToRgba = (hex: string, alpha: number): string => {
@@ -588,9 +549,101 @@ const animate = () => {
 }
 
 .controls h3 {
-  margin: 0 0 10px 0;
+  margin: 0 0 15px 0;
   font-size: 16px;
   color: #333;
+}
+
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid #ddd;
+  background: white;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  border-color: #007bff;
+  background: #f8f9fa;
+}
+
+.tab-button.active {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.tab-content {
+  animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.locked-info {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 15px;
+}
+
+.locked-info p {
+  margin: 0;
+  font-size: 13px;
+  color: #856404;
+}
+
+.locked-info p:first-child {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.settings-readonly {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 15px;
+}
+
+.settings-readonly h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 13px;
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.setting-value {
+  color: #007bff;
+  font-weight: 600;
 }
 
 .control-group {
@@ -634,6 +687,32 @@ const animate = () => {
 
 .gps-item:last-child {
   border-bottom: none;
+}
+
+.debug-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.checkbox-label span {
+  user-select: none;
 }
 
 /* Ensure proper rendering on mobile */
