@@ -21,6 +21,7 @@
     "@ionic/cli": "^7.2.1",
     "@ionic/vue": "^8.0.0",
     "@ionic/vue-router": "^8.0.0",
+    "h3-js": "^4.4.0",
     "ionicons": "^7.0.0",
     "maplibre-gl": "^5.18.0",
     "vue": "^3.3.0",
