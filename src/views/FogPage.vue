@@ -9,18 +9,6 @@
           <h3>🗺️ Fog of War</h3>
           
           <div class="control-group">
-            <label>Parent Levels to Show</label>
-            <ion-range 
-              v-model="parentLevels" 
-              :min="0" 
-              :max="5" 
-              :step="1"
-              :pin="true"
-            ></ion-range>
-            <div class="value-display">{{ parentLevels }} level(s)</div>
-          </div>
-
-          <div class="control-group">
             <label>Fog Opacity</label>
             <ion-range 
               v-model="fogOpacity" 
@@ -32,26 +20,8 @@
             <div class="value-display">{{ (fogOpacity * 100).toFixed(0) }}%</div>
           </div>
 
-          <div class="control-group">
-            <label>Parent Outline Color</label>
-            <input type="color" v-model="parentOutlineColor">
-          </div>
-
-          <div class="control-group">
-            <label>Parent Outline Width</label>
-            <ion-range 
-              v-model="parentOutlineWidth" 
-              :min="1" 
-              :max="10" 
-              :step="1"
-              :pin="true"
-            ></ion-range>
-            <div class="value-display">{{ parentOutlineWidth }}px</div>
-          </div>
-
           <div class="stats">
             <div class="stat-item">Visible Cells: {{ visibleCells.length }}</div>
-            <div class="stat-item">Parent Cells: {{ totalParentCells }}</div>
           </div>
         </div>
       </div>
@@ -60,27 +30,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent, IonRange } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-// Refs
 const mapContainer = ref<HTMLElement | null>(null);
 const fogCanvas = ref<HTMLCanvasElement | null>(null);
 const map = ref<maplibregl.Map>();
 const fogCtx = ref<CanvasRenderingContext2D | null>(null);
 
-// State
 const fogOpacity = ref(0.85);
 const fogColor = ref('#1a1a1a');
-const parentLevels = ref(2);
-const parentOutlineColor = ref('#00ff00');
-const parentOutlineWidth = ref(3);
 const animationFrame = ref<number | null>(null);
 
-// H3 cells (all at resolution 10)
 const h3Cells = ref<string[]>([
     '8a1f96069aeffff',
     '8a1f96a9a6affff',
@@ -109,16 +73,6 @@ const h3Cells = ref<string[]>([
 ]);
 
 const visibleCells = ref<string[]>([]);
-const parentCells = ref<Map<number, string[]>>(new Map());
-
-// Computed property for total parent cells count
-const totalParentCells = computed(() => {
-  let total = 0;
-  parentCells.value.forEach(cells => {
-    total += cells.length;
-  });
-  return total;
-});
 
 onMounted(() => {
   setTimeout(() => {
@@ -137,10 +91,6 @@ onUnmounted(() => {
   if (map.value) {
     map.value.remove();
   }
-});
-
-watch(parentLevels, () => {
-  calculateParentCells();
 });
 
 const initMap = () => {
@@ -193,31 +143,8 @@ const resizeFogCanvas = () => {
 };
 
 const processH3Cells = () => {
-  // Uncompact all cells to resolution 10
-  const compactedCells = h3Cells.value;
-  visibleCells.value = h3.uncompactCells(compactedCells, 10);
-  
-  calculateParentCells();
-};
-
-const calculateParentCells = () => {
-  parentCells.value.clear();
-  
-  if (parentLevels.value === 0) return;
-  
-  // Calculate parent cells at different levels
-  for (let level = 1; level <= parentLevels.value; level++) {
-    const parents = new Set<string>();
-    
-    visibleCells.value.forEach(cell => {
-      const currentRes = h3.getResolution(cell);
-      const targetRes = Math.max(0, currentRes - level);
-      const parent = h3.cellToParent(cell, targetRes);
-      parents.add(parent);
-    });
-    
-    parentCells.value.set(level, Array.from(parents));
-  }
+  const uncompacted = h3.uncompactCells(h3Cells.value, 10);
+  visibleCells.value = Array.from(new Set(uncompacted));
 };
 
 const setupEventListeners = () => {
@@ -236,15 +163,12 @@ const drawFog = () => {
   const width = fogCanvas.value.width;
   const height = fogCanvas.value.height;
 
-  // Clear canvas
   ctx.clearRect(0, 0, width, height);
   ctx.save();
 
-  // Fill entire canvas with fog
   ctx.fillStyle = hexToRgba(fogColor.value, fogOpacity.value);
   ctx.fillRect(0, 0, width, height);
 
-  // Cut out visible H3 cells
   ctx.globalCompositeOperation = 'destination-out';
   
   visibleCells.value.forEach(cell => {
@@ -252,28 +176,6 @@ const drawFog = () => {
   });
 
   ctx.restore();
-
-  // Draw parent cell outlines on top of fog
-  if (parentLevels.value > 0) {
-    ctx.save();
-    
-    // Draw from outermost to innermost level
-    for (let level = parentLevels.value; level >= 1; level--) {
-      const cells = parentCells.value.get(level);
-      if (!cells) continue;
-      
-      // Vary color intensity by level
-      const alpha = 0.3 + (level / parentLevels.value) * 0.7;
-      ctx.strokeStyle = hexToRgba(parentOutlineColor.value, alpha);
-      ctx.lineWidth = parentOutlineWidth.value * (parentLevels.value - level + 1) / parentLevels.value;
-      
-      cells.forEach(cell => {
-        drawH3CellOutline(ctx, cell);
-      });
-    }
-    
-    ctx.restore();
-  }
 };
 
 const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolean = false) => {
@@ -301,29 +203,6 @@ const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolea
     ctx.fillStyle = 'rgba(0, 0, 0, 1)';
     ctx.fill();
   }
-};
-
-const drawH3CellOutline = (ctx: CanvasRenderingContext2D, h3Index: string) => {
-  if (!map.value) return;
-  
-  const boundary = h3.cellToBoundary(h3Index);
-  
-  if (boundary.length === 0) return;
-  
-  ctx.beginPath();
-  
-  boundary.forEach((coord, i) => {
-    const point = map.value!.project([coord[1], coord[0]]);
-    
-    if (i === 0) {
-      ctx.moveTo(point.x, point.y);
-    } else {
-      ctx.lineTo(point.x, point.y);
-    }
-  });
-  
-  ctx.closePath();
-  ctx.stroke();
 };
 
 const hexToRgba = (hex: string, alpha: number): string => {
@@ -389,13 +268,6 @@ const animate = () => {
   font-size: 13px;
   color: #666;
   margin-bottom: 4px;
-}
-
-.control-group input[type="color"] {
-  width: 100%;
-  height: 32px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
 }
 
 .value-display {
