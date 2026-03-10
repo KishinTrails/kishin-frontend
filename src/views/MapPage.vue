@@ -9,7 +9,7 @@
           <h3>🗺️ Trail Map</h3>
           
           <div class="stats">
-            <div class="stat-item">Cells: {{ visibleCells.length }}</div>
+            <div class="stat-item">Rendered Cells: {{ visibleCells.length }}</div>
           </div>
         </div>
 
@@ -46,7 +46,6 @@ const mapContainer = ref<HTMLElement | null>(null);
 const cellsCanvas = ref<HTMLCanvasElement | null>(null);
 const map = ref<maplibregl.Map>();
 const cellsCtx = ref<CanvasRenderingContext2D | null>(null);
-const animationFrame = ref<number | null>(null);
 
 const peakImage = ref<HTMLImageElement | null>(null);
 const naturalImage = ref<HTMLImageElement | null>(null);
@@ -121,7 +120,6 @@ onMounted(() => {
     initCellsCanvas();
     setupEventListeners();
     processH3Cells();
-    animate();
   }, 100);
 });
 
@@ -142,9 +140,6 @@ const loadImages = () => {
 };
 
 onUnmounted(() => {
-  if (animationFrame.value) {
-    cancelAnimationFrame(animationFrame.value);
-  }
   if (map.value) {
     map.value.remove();
   }
@@ -263,11 +258,6 @@ const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HT
   const baseSize = 12;
   const imgSize = baseSize * Math.pow(2, zoom - baseZoom);
   ctx.drawImage(img, point.x - imgSize / 2, point.y - imgSize / 2, imgSize, imgSize);
-};
-
-const animate = () => {
-  drawCells();
-  animationFrame.value = requestAnimationFrame(animate);
 };
 </script>
 
