@@ -39,6 +39,7 @@ import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { fetchCellType } from '@/services/poiService';
 
 type CellType = 'peak' | 'natural' | 'industrial';
 
@@ -78,32 +79,7 @@ const h3Cells = ref<string[]>([
     '891f96069a7ffff',
 ]);
 
-const cellTypes = ref<Map<string, CellType>>(new Map([
-  ['8a1f96069aeffff', 'peak'],
-  ['8a1f96a9a6affff', 'natural'],
-  ['8a1f96069a07fff', 'industrial'],
-  ['8a1f96334daffff', 'peak'],
-  ['8a1f96a9a79ffff', 'natural'],
-  ['8a1f96069a1ffff', 'peak'],
-  ['8a1f96334da7fff', 'natural'],
-  ['8a1f96069b5ffff', 'industrial'],
-  ['8a1f96069b6ffff', 'peak'],
-  ['8a1f96069ae7fff', 'natural'],
-  ['8a1f96a9a617fff', 'peak'],
-  ['8a1f96a9a68ffff', 'natural'],
-  ['8a1f96a9a78ffff', 'peak'],
-  ['8a1f96a9a637fff', 'natural'],
-  ['8a1f96a9a787fff', 'industrial'],
-  ['8a1f96334d37fff', 'peak'],
-  ['8a1f96069b4ffff', 'natural'],
-  ['8a1f96a9a797fff', 'peak'],
-  ['8a1f96334d27fff', 'natural'],
-  ['8a1f96334d07fff', 'industrial'],
-  ['8a1f96069a2ffff', 'peak'],
-  ['8a1f96069a0ffff', 'natural'],
-  ['8a1f96334d17fff', 'peak'],
-  ['891f96069a7ffff', 'natural'],
-]));
+const cellTypes = ref<Map<string, CellType>>(new Map());
 
 const visibleCells = ref<string[]>([]);
 
@@ -120,6 +96,7 @@ onMounted(() => {
     initCellsCanvas();
     setupEventListeners();
     processH3Cells();
+    fetchCellTypes();
   }, 100);
 });
 
@@ -131,7 +108,7 @@ const loadImages = () => {
   };
 
   peakImage.value = loadImage('/tori.png');
-  naturalImage.value = loadImage('/lumber.png');
+  naturalImage.value = loadImage('/nature.png');
   industrialImage.value = loadImage('/factory.png');
 
   typeImages.peak = peakImage.value;
@@ -208,6 +185,19 @@ const setupEventListeners = () => {
   });
 };
 
+const fetchCellTypes = async () => {
+  for (const cell of h3Cells.value) {
+    try {
+      const type = await fetchCellType(cell);
+      if (type) {
+        cellTypes.value.set(cell, type);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch cell type for ${cell}:`, error);
+    }
+  }
+};
+
 const drawCells = () => {
   if (!cellsCtx.value || !cellsCanvas.value || !map.value) return;
 
@@ -218,7 +208,8 @@ const drawCells = () => {
   ctx.clearRect(0, 0, width, height);
   
   visibleCells.value.forEach(cell => {
-    const type = cellTypes.value.get(cell) || 'natural';
+    const type = cellTypes.value.get(cell);
+    if (!type) return;
     const img = typeImages[type];
     drawH3CellImage(ctx, cell, img);
   });
