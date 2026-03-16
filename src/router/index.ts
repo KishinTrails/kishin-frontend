@@ -4,7 +4,7 @@ import FogPage from "../views/FogPage.vue";
 import MapPage from "../views/MapPage.vue";
 import RectanglePage from "../views/RectanglePage.vue";
 import LoginPage from "../views/LoginPage.vue";
-import { isAuthenticated } from "@/services/authService";
+import { isAuthenticated, logout } from "@/services/authService";
 
 const routes: Array<RouteRecordRaw> = [
     {
@@ -15,6 +15,14 @@ const routes: Array<RouteRecordRaw> = [
         path: "/login",
         name: "Login",
         component: LoginPage,
+    },
+    {
+        path: "/logout",
+        name: "Logout",
+        redirect: () => {
+            logout();
+            return "/login";
+        },
     },
     {
         path: "/fog",

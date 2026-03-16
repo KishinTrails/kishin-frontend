@@ -10,24 +10,13 @@
           
           <div class="stats">
             <div class="stat-item">Rendered Cells: {{ visibleCells.length }}</div>
+            <div class="stat-item">Pending Calls: {{ remainingCalls }}</div>
+            <div class="stat-item">Cache Hits: {{ cacheHits }}</div>
+            <div class="stat-item">Cache Misses: {{ cacheMisses }}</div>
           </div>
         </div>
 
-        <div class="legend">
-          <h4>Legend</h4>
-          <div class="legend-item">
-            <span class="legend-color peak"></span>
-            <span>Peak</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-color natural"></span>
-            <span>Natural</span>
-          </div>
-          <div class="legend-item">
-            <span class="legend-color industrial"></span>
-            <span>Industrial</span>
-          </div>
-        </div>
+
       </div>
     </ion-content>
   </ion-page>
@@ -39,9 +28,12 @@ import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { fetchCellType } from '@/services/poiService';
+import { fetchCellTypes as fetchCellTypesFromService } from '@/services/poiService';
+import { getCellTypeFromCache } from '@/services/cacheService';
 
 type CellType = 'peak' | 'natural' | 'industrial';
+
+const H3_RESOLUTION = 10;
 
 const mapContainer = ref<HTMLElement | null>(null);
 const cellsCanvas = ref<HTMLCanvasElement | null>(null);
@@ -52,36 +44,15 @@ const peakImage = ref<HTMLImageElement | null>(null);
 const naturalImage = ref<HTMLImageElement | null>(null);
 const industrialImage = ref<HTMLImageElement | null>(null);
 
-const h3Cells = ref<string[]>([
-    '8a1f96069aeffff',
-    '8a1f96a9a6affff',
-    '8a1f96069a07fff',
-    '8a1f96334daffff',
-    '8a1f96a9a79ffff',
-    '8a1f96069a1ffff',
-    '8a1f96334da7fff',
-    '8a1f96069b5ffff',
-    '8a1f96069b6ffff',
-    '8a1f96069ae7fff',
-    '8a1f96a9a617fff',
-    '8a1f96a9a68ffff',
-    '8a1f96a9a78ffff',
-    '8a1f96a9a637fff',
-    '8a1f96a9a787fff',
-    '8a1f96334d37fff',
-    '8a1f96069b4ffff',
-    '8a1f96a9a797fff',
-    '8a1f96334d27fff',
-    '8a1f96334d07fff',
-    '8a1f96069a2ffff',
-    '8a1f96069a0ffff',
-    '8a1f96334d17fff',
-    '891f96069a7ffff',
-]);
-
 const cellTypes = ref<Map<string, CellType>>(new Map());
 
 const visibleCells = ref<string[]>([]);
+const remainingCalls = ref(0);
+const cacheHits = ref(0);
+const cacheMisses = ref(0);
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let abortController: AbortController | null = null;
 
 const typeImages: Record<CellType, HTMLImageElement | null> = {
   peak: null,
@@ -95,8 +66,7 @@ onMounted(() => {
     initMap();
     initCellsCanvas();
     setupEventListeners();
-    processH3Cells();
-    fetchCellTypes();
+    updateVisibleCells();
   }, 100);
 });
 
@@ -117,6 +87,9 @@ const loadImages = () => {
 };
 
 onUnmounted(() => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
   if (map.value) {
     map.value.remove();
   }
@@ -148,13 +121,19 @@ const initMap = () => {
       ]
     },
     center: [3.1009225078676246, 45.75259789465471] as [number, number],
-    zoom: 13
+    zoom: 16
   });
 
   map.value.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-  map.value.on('move', drawCells);
-  map.value.on('zoom', drawCells);
+  map.value.on('move', () => {
+    debouncedUpdate();
+    drawCells();
+  });
+  map.value.on('zoom', () => {
+    debouncedUpdate();
+    drawCells();
+  });
 };
 
 const initCellsCanvas = () => {
@@ -171,9 +150,40 @@ const resizeCellsCanvas = () => {
   cellsCanvas.value.height = window.innerHeight;
 };
 
-const processH3Cells = () => {
-  const uncompacted = h3.uncompactCells(h3Cells.value, 10);
-  visibleCells.value = Array.from(new Set(uncompacted));
+const computeCellsFromBounds = (): string[] => {
+  if (!map.value) return [];
+
+  const bounds = map.value.getBounds();
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+
+  const polygon: [number, number][] = [
+    [sw.lat, sw.lng],
+    [ne.lat, sw.lng],
+    [ne.lat, ne.lng],
+    [sw.lat, ne.lng],
+    [sw.lat, sw.lng],
+  ];
+
+  return h3.polygonToCells(polygon, H3_RESOLUTION);
+};
+
+const updateVisibleCells = () => {
+  if (!map.value) return;
+
+  const cells = computeCellsFromBounds();
+  visibleCells.value = cells;
+  fetchCellTypes();
+  drawCells();
+};
+
+const debouncedUpdate = () => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+  debounceTimer = setTimeout(() => {
+    updateVisibleCells();
+  }, 500);
 };
 
 const setupEventListeners = () => {
@@ -186,16 +196,32 @@ const setupEventListeners = () => {
 };
 
 const fetchCellTypes = async () => {
-  for (const cell of h3Cells.value) {
-    try {
-      const type = await fetchCellType(cell);
-      if (type) {
-        cellTypes.value.set(cell, type);
-      }
-    } catch (error) {
-      console.error(`Failed to fetch cell type for ${cell}:`, error);
+  abortController?.abort();
+  abortController = new AbortController();
+
+  // First, sync cells from localStorage cache to in-memory map
+  for (const cell of visibleCells.value) {
+    const cachedFromLocalStorage = getCellTypeFromCache(cell);
+    if (cachedFromLocalStorage !== null) {
+      cellTypes.value.set(cell, cachedFromLocalStorage);
+      cacheHits.value++;
     }
   }
+
+  // Now determine which cells need to be fetched (not in any cache)
+  const cellsToFetch = visibleCells.value.filter(
+    cell => cellTypes.value.get(cell) === undefined
+  );
+  cacheMisses.value = cellsToFetch.length;
+  remainingCalls.value = cellsToFetch.length;
+
+  if (cellsToFetch.length > 0) {
+    const results = await fetchCellTypesFromService(cellsToFetch, abortController.signal);
+    for (const [cell, type] of results) {
+      cellTypes.value.set(cell, type);
+    }
+  }
+  remainingCalls.value = 0;
 };
 
 const drawCells = () => {
@@ -305,55 +331,6 @@ const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HT
   padding: 4px 0;
 }
 
-.legend {
-  position: absolute;
-  bottom: 20px;
-  left: 20px;
-  background: white;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-  z-index: 2;
-}
-
-.legend h4 {
-  margin: 0 0 10px 0;
-  font-size: 14px;
-  color: #333;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 12px;
-  color: #666;
-}
-
-.legend-item:last-child {
-  margin-bottom: 0;
-}
-
-.legend-color {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(0,0,0,0.2);
-}
-
-.legend-color.peak {
-  background-color: #e74c3c;
-}
-
-.legend-color.natural {
-  background-color: #27ae60;
-}
-
-.legend-color.industrial {
-  background-color: #7f8c8d;
-}
-
 ion-content {
   --background: transparent;
 }
@@ -361,10 +338,6 @@ ion-content {
 @supports (padding: max(0px)) {
   .controls {
     top: max(20px, env(safe-area-inset-top));
-    left: max(20px, env(safe-area-inset-left));
-  }
-  .legend {
-    bottom: max(20px, env(safe-area-inset-bottom));
     left: max(20px, env(safe-area-inset-left));
   }
 }
