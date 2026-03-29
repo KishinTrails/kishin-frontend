@@ -65,7 +65,7 @@ const handleLogin = async () => {
 
   try {
     await login(username.value, password.value);
-    router.replace('/fog');
+    router.replace('/map');
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Login failed';
   } finally {

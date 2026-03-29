@@ -9,11 +9,14 @@
           <h3>🗺️ Trail Map</h3>
           
           <div class="stats">
-            <div class="stat-item">Explored: {{ visitedCells.size }}</div>
-            <div class="stat-item">Visible Explored: {{ visibleExplored.length }}</div>
-            <div class="stat-item">Visible Fog: {{ visibleFog.length }}</div>
+            <div class="stat-item">Rendered Cells: {{ visibleCells.length }}</div>
+            <div class="stat-item">Pending Calls: {{ remainingCalls }}</div>
+            <div class="stat-item">Cache Hits: {{ cacheHits }}</div>
+            <div class="stat-item">Cache Misses: {{ cacheMisses }}</div>
           </div>
         </div>
+
+
       </div>
     </ion-content>
   </ion-page>
@@ -27,7 +30,6 @@ import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { fetchCellTypes as fetchCellTypesFromService } from '@/services/poiService';
 import { getCellTypeFromCache } from '@/services/cacheService';
-import { fetchExploredTiles } from '@/services/trailsService';
 
 type CellType = 'peak' | 'natural' | 'industrial';
 
@@ -43,14 +45,11 @@ const naturalImage = ref<HTMLImageElement | null>(null);
 const industrialImage = ref<HTMLImageElement | null>(null);
 
 const cellTypes = ref<Map<string, CellType>>(new Map());
-const visitedCells = ref<Set<string>>(new Set());
 
 const visibleCells = ref<string[]>([]);
-const visibleExplored = ref<string[]>([]);
-const visibleFog = ref<string[]>([]);
-
-const fogOpacity = ref(0.85);
-const fogColor = ref('#1a1a1a');
+const remainingCalls = ref(0);
+const cacheHits = ref(0);
+const cacheMisses = ref(0);
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let abortController: AbortController | null = null;
@@ -61,8 +60,7 @@ const typeImages: Record<CellType, HTMLImageElement | null> = {
   industrial: null
 };
 
-onMounted(async () => {
-  await loadExploredTiles();
+onMounted(() => {
   loadImages();
   setTimeout(() => {
     initMap();
@@ -71,15 +69,6 @@ onMounted(async () => {
     updateVisibleCells();
   }, 100);
 });
-
-const loadExploredTiles = async () => {
-  try {
-    const explored = await fetchExploredTiles();
-    visitedCells.value = new Set(explored);
-  } catch (err) {
-    console.error('Failed to load explored tiles:', err);
-  }
-};
 
 const loadImages = () => {
   const loadImage = (src: string): HTMLImageElement => {
@@ -184,10 +173,6 @@ const updateVisibleCells = () => {
 
   const cells = computeCellsFromBounds();
   visibleCells.value = cells;
-  
-  visibleExplored.value = cells.filter(cell => visitedCells.value.has(cell));
-  visibleFog.value = cells.filter(cell => !visitedCells.value.has(cell));
-  
   fetchCellTypes();
   drawCells();
 };
@@ -214,9 +199,21 @@ const fetchCellTypes = async () => {
   abortController?.abort();
   abortController = new AbortController();
 
-  const cellsToFetch = visibleExplored.value.filter(
-    cell => getCellTypeFromCache(cell) === null && !cellTypes.value.has(cell)
+  // First, sync cells from localStorage cache to in-memory map
+  for (const cell of visibleCells.value) {
+    const cachedFromLocalStorage = getCellTypeFromCache(cell);
+    if (cachedFromLocalStorage !== null) {
+      cellTypes.value.set(cell, cachedFromLocalStorage);
+      cacheHits.value++;
+    }
+  }
+
+  // Now determine which cells need to be fetched (not in any cache)
+  const cellsToFetch = visibleCells.value.filter(
+    cell => cellTypes.value.get(cell) === undefined
   );
+  cacheMisses.value = cellsToFetch.length;
+  remainingCalls.value = cellsToFetch.length;
 
   if (cellsToFetch.length > 0) {
     const results = await fetchCellTypesFromService(cellsToFetch, abortController.signal);
@@ -224,6 +221,7 @@ const fetchCellTypes = async () => {
       cellTypes.value.set(cell, type);
     }
   }
+  remainingCalls.value = 0;
 };
 
 const drawCells = () => {
@@ -235,67 +233,12 @@ const drawCells = () => {
 
   ctx.clearRect(0, 0, width, height);
   
-  drawFogLayer();
-  drawPoiMarkers();
-};
-
-const drawFogLayer = () => {
-  if (!cellsCtx.value || !cellsCanvas.value || !map.value || visibleFog.value.length === 0) return;
-
-  const ctx = cellsCtx.value;
-  const width = cellsCanvas.value.width;
-  const height = cellsCanvas.value.height;
-
-  ctx.save();
-  
-  ctx.fillStyle = hexToRgba(fogColor.value, fogOpacity.value);
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.globalCompositeOperation = 'destination-out';
-  
-  for (const cell of visibleExplored.value) {
-    drawH3Cell(ctx, cell, true);
-  }
-
-  ctx.restore();
-};
-
-const drawPoiMarkers = () => {
-  if (!cellsCtx.value || !map.value) return;
-
-  for (const cell of visibleExplored.value) {
+  visibleCells.value.forEach(cell => {
     const type = cellTypes.value.get(cell);
-    if (!type) continue;
+    if (!type) return;
     const img = typeImages[type];
-    drawH3CellImage(cellsCtx.value, cell, img);
-  }
-};
-
-const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolean = false) => {
-  if (!map.value) return;
-  
-  const boundary = h3.cellToBoundary(h3Index);
-  
-  if (boundary.length === 0) return;
-  
-  ctx.beginPath();
-  
-  boundary.forEach((coord, i) => {
-    const point = map.value!.project([coord[1], coord[0]]);
-    
-    if (i === 0) {
-      ctx.moveTo(point.x, point.y);
-    } else {
-      ctx.lineTo(point.x, point.y);
-    }
+    drawH3CellImage(ctx, cell, img);
   });
-  
-  ctx.closePath();
-  
-  if (fill) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-    ctx.fill();
-  }
 };
 
 const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HTMLImageElement | null) => {
@@ -332,13 +275,6 @@ const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HT
   const baseSize = 12;
   const imgSize = baseSize * Math.pow(2, zoom - baseZoom);
   ctx.drawImage(img, point.x - imgSize / 2, point.y - imgSize / 2, imgSize, imgSize);
-};
-
-const hexToRgba = (hex: string, alpha: number): string => {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 </script>
 

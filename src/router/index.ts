@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 import FogPage from "../views/FogPage.vue";
 import MapPage from "../views/MapPage.vue";
+import ClearmapPage from "../views/ClearmapPage.vue";
 import RectanglePage from "../views/RectanglePage.vue";
 import LoginPage from "../views/LoginPage.vue";
 import { isAuthenticated, logout } from "@/services/authService";
@@ -9,7 +10,7 @@ import { isAuthenticated, logout } from "@/services/authService";
 const routes: Array<RouteRecordRaw> = [
     {
         path: "/",
-        redirect: "/fog",
+        redirect: "/map",
     },
     {
         path: "/login",
@@ -25,20 +26,26 @@ const routes: Array<RouteRecordRaw> = [
         },
     },
     {
-        path: "/fog",
-        name: "Fog",
-        component: FogPage,
-        meta: { requiresAuth: true },
-    },
-    {
         path: "/map",
         name: "Map",
         component: MapPage,
         meta: { requiresAuth: true },
     },
     {
-        path: "/rectangles",
-        name: "Rectangles",
+        path: "/debug/fog",
+        name: "DebugFog",
+        component: FogPage,
+        meta: { requiresAuth: true },
+    },
+    {
+        path: "/debug/map",
+        name: "DebugMap",
+        component: ClearmapPage,
+        meta: { requiresAuth: true },
+    },
+    {
+        path: "/debug/rectangles",
+        name: "DebugRectangles",
         component: RectanglePage,
         meta: { requiresAuth: true },
     },
@@ -56,7 +63,7 @@ router.beforeEach((to, from, next) => {
     if (requiresAuth && !isAuth) {
         next('/login');
     } else if (to.path === '/login' && isAuth) {
-        next('/fog');
+        next('/map');
     } else {
         next();
     }
