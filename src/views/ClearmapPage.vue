@@ -28,10 +28,8 @@ import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { fetchCellTypes as fetchCellTypesFromService } from '@/services/poiService';
+import { fetchCellTypes as fetchCellTypesFromService, CellType } from '@/services/poiService';
 import { getCellTypeFromCache } from '@/services/cacheService';
-
-type CellType = 'peak' | 'natural' | 'industrial';
 
 const H3_RESOLUTION = 10;
 
@@ -44,7 +42,7 @@ const peakImage = ref<HTMLImageElement | null>(null);
 const naturalImage = ref<HTMLImageElement | null>(null);
 const industrialImage = ref<HTMLImageElement | null>(null);
 
-const cellTypes = ref<Map<string, CellType>>(new Map());
+const cellTypes = ref<Map<string, Exclude<CellType, 'none'>>>(new Map());
 
 const visibleCells = ref<string[]>([]);
 const remainingCalls = ref(0);
@@ -54,7 +52,7 @@ const cacheMisses = ref(0);
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let abortController: AbortController | null = null;
 
-const typeImages: Record<CellType, HTMLImageElement | null> = {
+const typeImages: Record<Exclude<CellType, 'none'>, HTMLImageElement | null> = {
   peak: null,
   natural: null,
   industrial: null
@@ -202,8 +200,8 @@ const fetchCellTypes = async () => {
   // First, sync cells from localStorage cache to in-memory map
   for (const cell of visibleCells.value) {
     const cachedFromLocalStorage = getCellTypeFromCache(cell);
-    if (cachedFromLocalStorage !== null) {
-      cellTypes.value.set(cell, cachedFromLocalStorage);
+    if (cachedFromLocalStorage !== null && cachedFromLocalStorage !== 'none') {
+      cellTypes.value.set(cell, cachedFromLocalStorage as Exclude<CellType, 'none'>);
       cacheHits.value++;
     }
   }
@@ -218,7 +216,9 @@ const fetchCellTypes = async () => {
   if (cellsToFetch.length > 0) {
     const results = await fetchCellTypesFromService(cellsToFetch, abortController.signal);
     for (const [cell, type] of results) {
-      cellTypes.value.set(cell, type);
+      if (type !== 'none') {
+        cellTypes.value.set(cell, type);
+      }
     }
   }
   remainingCalls.value = 0;

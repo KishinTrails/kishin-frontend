@@ -29,7 +29,7 @@ import { fetchCellTypes as fetchCellTypesFromService } from '@/services/poiServi
 import { getCellTypeFromCache } from '@/services/cacheService';
 import { fetchExploredTiles } from '@/services/trailsService';
 
-type CellType = 'peak' | 'natural' | 'industrial';
+type CellTypeKey = 'peak' | 'natural' | 'industrial';
 
 const H3_RESOLUTION = 10;
 
@@ -42,7 +42,7 @@ const peakImage = ref<HTMLImageElement | null>(null);
 const naturalImage = ref<HTMLImageElement | null>(null);
 const industrialImage = ref<HTMLImageElement | null>(null);
 
-const cellTypes = ref<Map<string, CellType>>(new Map());
+const cellTypes = ref<Map<string, CellTypeKey | null>>(new Map());
 const visitedCells = ref<Set<string>>(new Set());
 
 const visibleCells = ref<string[]>([]);
@@ -55,7 +55,7 @@ const fogColor = ref('#1a1a1a');
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let abortController: AbortController | null = null;
 
-const typeImages: Record<CellType, HTMLImageElement | null> = {
+const typeImages: Record<CellTypeKey, HTMLImageElement | null> = {
   peak: null,
   natural: null,
   industrial: null
@@ -185,8 +185,19 @@ const updateVisibleCells = () => {
   const cells = computeCellsFromBounds();
   visibleCells.value = cells;
   
-  visibleExplored.value = cells.filter(cell => visitedCells.value.has(cell));
-  visibleFog.value = cells.filter(cell => !visitedCells.value.has(cell));
+  const explored: string[] = [];
+  const fog: string[] = [];
+
+  for (const cell of cells) {
+    if (visitedCells.value.has(cell)) {
+      explored.push(cell);
+    } else {
+      fog.push(cell);
+    }
+  }
+
+  visibleExplored.value = explored;
+  visibleFog.value = fog;
   
   fetchCellTypes();
   drawCells();
@@ -214,14 +225,25 @@ const fetchCellTypes = async () => {
   abortController?.abort();
   abortController = new AbortController();
 
-  const cellsToFetch = visibleExplored.value.filter(
-    cell => getCellTypeFromCache(cell) === null && !cellTypes.value.has(cell)
-  );
+  const cellsToFetch: string[] = [];
+
+  for (const cell of visibleExplored.value) {
+    if (cellTypes.value.has(cell)) continue;
+    
+    const cached = getCellTypeFromCache(cell);
+    if (cached !== null && cached !== 'none') {
+      cellTypes.value.set(cell, cached as CellTypeKey);
+    } else {
+      cellsToFetch.push(cell);
+    }
+  }
 
   if (cellsToFetch.length > 0) {
     const results = await fetchCellTypesFromService(cellsToFetch, abortController.signal);
     for (const [cell, type] of results) {
-      cellTypes.value.set(cell, type);
+      if (type !== 'none') {
+        cellTypes.value.set(cell, type as CellTypeKey);
+      }
     }
   }
 };
@@ -266,7 +288,7 @@ const drawPoiMarkers = () => {
   for (const cell of visibleExplored.value) {
     const type = cellTypes.value.get(cell);
     if (!type) continue;
-    const img = typeImages[type];
+    const img = typeImages[type as CellTypeKey];
     drawH3CellImage(cellsCtx.value, cell, img);
   }
 };
