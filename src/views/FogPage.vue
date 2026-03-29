@@ -38,6 +38,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent, IonRange } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
+import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const mapContainer = ref<HTMLElement | null>(null);
@@ -218,7 +219,7 @@ const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolea
   
   ctx.beginPath();
   
-  boundary.forEach((coord, i) => {
+  boundary.forEach((coord: number[], i: number) => {
     const point = map.value!.project([coord[1], coord[0]]);
     
     if (i === 0) {
