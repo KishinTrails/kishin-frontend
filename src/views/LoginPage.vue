@@ -47,6 +47,11 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * LoginPage - User authentication page.
+ * Provides a form for users to log in with username and password.
+ */
+
 import { ref } from 'vue';
 import { IonPage, IonContent, IonItem, IonLabel, IonInput, IonButton, IonSpinner } from '@ionic/vue';
 import { useRouter } from 'vue-router';
@@ -59,6 +64,10 @@ const password = ref('');
 const isLoading = ref(false);
 const errorMessage = ref('');
 
+/**
+ * Handle login form submission.
+ * Calls the authentication service and redirects on success.
+ */
 const handleLogin = async () => {
   errorMessage.value = '';
   isLoading.value = true;

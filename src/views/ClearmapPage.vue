@@ -23,6 +23,11 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * ClearmapPage - Debug page for displaying H3 cells with POI markers on a map.
+ * Shows rendered cells, cache statistics, and cell type information.
+ */
+
 import { ref, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
@@ -68,6 +73,9 @@ onMounted(() => {
   }, 100);
 });
 
+/**
+ * Load marker images for POI types (peak, natural, industrial).
+ */
 const loadImages = () => {
   const loadImage = (src: string): HTMLImageElement => {
     const img = new Image();
@@ -93,6 +101,9 @@ onUnmounted(() => {
   }
 });
 
+/**
+ * Initialize the MapLibre map instance with OSM tiles.
+ */
 const initMap = () => {
   if (!mapContainer.value) return;
 
@@ -134,6 +145,9 @@ const initMap = () => {
   });
 };
 
+/**
+ * Initialize the canvas overlay for drawing H3 cell markers.
+ */
 const initCellsCanvas = () => {
   if (!cellsCanvas.value) return;
   
@@ -141,6 +155,9 @@ const initCellsCanvas = () => {
   resizeCellsCanvas();
 };
 
+/**
+ * Resize the canvas overlay to match the window dimensions.
+ */
 const resizeCellsCanvas = () => {
   if (!cellsCanvas.value) return;
   
@@ -148,6 +165,11 @@ const resizeCellsCanvas = () => {
   cellsCanvas.value.height = window.innerHeight;
 };
 
+/**
+ * Compute all H3 cells at the current resolution that fall within the map bounds.
+ * 
+ * @returns Array of H3 cell identifiers visible in the current map viewport.
+ */
 const computeCellsFromBounds = (): string[] => {
   if (!map.value) return [];
 
@@ -166,6 +188,9 @@ const computeCellsFromBounds = (): string[] => {
   return h3.polygonToCells(polygon, H3_RESOLUTION);
 };
 
+/**
+ * Update the list of visible cells and fetch their types from the API.
+ */
 const updateVisibleCells = () => {
   if (!map.value) return;
 
@@ -175,6 +200,9 @@ const updateVisibleCells = () => {
   drawCells();
 };
 
+/**
+ * Debounced version of updateVisibleCells to reduce API calls during map interaction.
+ */
 const debouncedUpdate = () => {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
@@ -184,6 +212,9 @@ const debouncedUpdate = () => {
   }, 500);
 };
 
+/**
+ * Set up window resize listener to handle canvas and map resizing.
+ */
 const setupEventListeners = () => {
   window.addEventListener('resize', () => {
     resizeCellsCanvas();
@@ -193,6 +224,10 @@ const setupEventListeners = () => {
   });
 };
 
+/**
+ * Fetch cell types for visible cells from the API, using cache when available.
+ * Updates cache hit/miss statistics.
+ */
 const fetchCellTypes = async () => {
   abortController?.abort();
   abortController = new AbortController();
@@ -224,6 +259,9 @@ const fetchCellTypes = async () => {
   remainingCalls.value = 0;
 };
 
+/**
+ * Draw all visible cells with their POI markers on the canvas overlay.
+ */
 const drawCells = () => {
   if (!cellsCtx.value || !cellsCanvas.value || !map.value) return;
 
@@ -241,6 +279,13 @@ const drawCells = () => {
   });
 };
 
+/**
+ * Draw an H3 cell boundary with a POI marker image at its center.
+ * 
+ * @param ctx - Canvas rendering context
+ * @param h3Index - H3 cell identifier
+ * @param img - Marker image to draw at cell center
+ */
 const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HTMLImageElement | null) => {
   if (!map.value || !img) return;
   

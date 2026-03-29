@@ -20,6 +20,11 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * MapPage - Main trail map view with fog-of-war and POI markers.
+ * Shows explored cells with markers, unexplored cells with fog overlay.
+ */
+
 import { ref, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
@@ -72,6 +77,9 @@ onMounted(async () => {
   }, 100);
 });
 
+/**
+ * Load the user's explored tiles from the API.
+ */
 const loadExploredTiles = async () => {
   try {
     const explored = await fetchExploredTiles();
@@ -81,6 +89,9 @@ const loadExploredTiles = async () => {
   }
 };
 
+/**
+ * Load marker images for POI types (peak, natural, industrial).
+ */
 const loadImages = () => {
   const loadImage = (src: string): HTMLImageElement => {
     const img = new Image();
@@ -106,6 +117,9 @@ onUnmounted(() => {
   }
 });
 
+/**
+ * Initialize the MapLibre map instance with OSM tiles.
+ */
 const initMap = () => {
   if (!mapContainer.value) return;
 
@@ -147,6 +161,9 @@ const initMap = () => {
   });
 };
 
+/**
+ * Initialize the canvas overlay for drawing cells and fog.
+ */
 const initCellsCanvas = () => {
   if (!cellsCanvas.value) return;
   
@@ -154,6 +171,9 @@ const initCellsCanvas = () => {
   resizeCellsCanvas();
 };
 
+/**
+ * Resize the canvas overlay to match the window dimensions.
+ */
 const resizeCellsCanvas = () => {
   if (!cellsCanvas.value) return;
   
@@ -161,6 +181,11 @@ const resizeCellsCanvas = () => {
   cellsCanvas.value.height = window.innerHeight;
 };
 
+/**
+ * Compute all H3 cells at the current resolution that fall within the map bounds.
+ * 
+ * @returns Array of H3 cell identifiers visible in the current map viewport.
+ */
 const computeCellsFromBounds = (): string[] => {
   if (!map.value) return [];
 
@@ -179,6 +204,9 @@ const computeCellsFromBounds = (): string[] => {
   return h3.polygonToCells(polygon, H3_RESOLUTION);
 };
 
+/**
+ * Update the lists of visible explored and fog cells based on map bounds.
+ */
 const updateVisibleCells = () => {
   if (!map.value) return;
 
@@ -202,6 +230,9 @@ const updateVisibleCells = () => {
   fetchCellTypes();
 };
 
+/**
+ * Debounced version of updateVisibleCells to reduce API calls during map interaction.
+ */
 const debouncedUpdate = () => {
   if (debounceTimer) {
     clearTimeout(debounceTimer);
@@ -211,6 +242,9 @@ const debouncedUpdate = () => {
   }, 500);
 };
 
+/**
+ * Set up window resize listener to handle canvas and map resizing.
+ */
 const setupEventListeners = () => {
   window.addEventListener('resize', () => {
     resizeCellsCanvas();
@@ -220,6 +254,9 @@ const setupEventListeners = () => {
   });
 };
 
+/**
+ * Fetch cell types for explored cells from the API.
+ */
 const fetchCellTypes = async () => {
   abortController?.abort();
   abortController = new AbortController();
@@ -248,6 +285,9 @@ const fetchCellTypes = async () => {
   }
 };
 
+/**
+ * Draw the fog layer and POI markers on the canvas overlay.
+ */
 const drawCells = () => {
   if (!cellsCtx.value || !cellsCanvas.value || !map.value) return;
 
@@ -261,6 +301,10 @@ const drawCells = () => {
   drawPoiMarkers();
 };
 
+/**
+ * Draw the fog overlay covering unexplored cells.
+ * Uses destination-out compositing to cut out explored cells.
+ */
 const drawFogLayer = () => {
   if (!cellsCtx.value || !cellsCanvas.value || !map.value || visibleFog.value.length === 0) return;
 
@@ -282,6 +326,9 @@ const drawFogLayer = () => {
   ctx.restore();
 };
 
+/**
+ * Draw POI markers on explored cells.
+ */
 const drawPoiMarkers = () => {
   if (!cellsCtx.value || !map.value) return;
 
@@ -293,6 +340,14 @@ const drawPoiMarkers = () => {
   }
 };
 
+/**
+ * Draw an H3 cell boundary on the canvas.
+ * Used for creating cutouts in the fog layer.
+ * 
+ * @param ctx - Canvas rendering context
+ * @param h3Index - H3 cell identifier
+ * @param fill - If true, fill the cell area (for fog cutout)
+ */
 const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolean = false) => {
   if (!map.value) return;
   
@@ -320,6 +375,13 @@ const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolea
   }
 };
 
+/**
+ * Draw an H3 cell boundary with a POI marker image at its center.
+ * 
+ * @param ctx - Canvas rendering context
+ * @param h3Index - H3 cell identifier
+ * @param img - Marker image to draw at cell center
+ */
 const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HTMLImageElement | null) => {
   if (!map.value || !img) return;
   
@@ -356,6 +418,13 @@ const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HT
   ctx.drawImage(img, point.x - imgSize / 2, point.y - imgSize / 2, imgSize, imgSize);
 };
 
+/**
+ * Convert a hex color string to RGBA format.
+ * 
+ * @param hex - Hex color string (e.g., "#1a1a1a")
+ * @param alpha - Alpha value (0-1)
+ * @returns RGBA color string
+ */
 const hexToRgba = (hex: string, alpha: number): string => {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);

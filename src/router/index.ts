@@ -1,3 +1,10 @@
+/**
+ * Vue Router configuration for Kishin frontend.
+ * 
+ * Defines application routes with authentication protection for protected routes.
+ * Uses Ionic Vue Router with history mode.
+ */
+
 import { createRouter, createWebHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 import FogPage from "../views/FogPage.vue";
@@ -7,6 +14,11 @@ import RectanglePage from "../views/RectanglePage.vue";
 import LoginPage from "../views/LoginPage.vue";
 import { isAuthenticated, logout } from "@/services/authService";
 
+/**
+ * Application route definitions.
+ * Routes marked with `requiresAuth: true` redirect unauthenticated users to /login.
+ * Authenticated users accessing /login are redirected to /map.
+ */
 const routes: Array<RouteRecordRaw> = [
     {
         path: "/",
@@ -56,6 +68,11 @@ const router = createRouter({
     routes,
 });
 
+/**
+ * Navigation guard that enforces authentication on protected routes.
+ * - Redirects unauthenticated users to /login when accessing protected routes
+ * - Redirects authenticated users away from /login to /map
+ */
 router.beforeEach((to, from, next) => {
     const requiresAuth = to.meta.requiresAuth;
     const isAuth = isAuthenticated();

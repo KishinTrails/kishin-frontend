@@ -92,12 +92,20 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * RectanglePage - Debug page for visualizing bounding boxes and H3 cells.
+ * Allows users to add geographic bounding boxes or H3 cell IDs and see them rendered on a map.
+ */
+
 import { ref, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
+/**
+ * Represents a geographic bounding box.
+ */
 interface BoundingBox {
   south: number;
   west: number;
@@ -106,6 +114,9 @@ interface BoundingBox {
   color: string;
 }
 
+/**
+ * Represents an H3 cell to display on the map.
+ */
 interface H3Cell {
   cellId: string;
   color: string;
@@ -144,6 +155,9 @@ onUnmounted(() => {
   }
 });
 
+/**
+ * Initialize the MapLibre map instance with OSM tiles.
+ */
 const initMap = () => {
   if (!mapContainer.value) return;
 
@@ -179,6 +193,9 @@ const initMap = () => {
   map.value.on('zoom', drawRectangles);
 };
 
+/**
+ * Initialize the canvas overlay for drawing rectangles and H3 cells.
+ */
 const initRectsCanvas = () => {
   if (!rectsCanvas.value) return;
   
@@ -186,6 +203,9 @@ const initRectsCanvas = () => {
   resizeRectsCanvas();
 };
 
+/**
+ * Resize the canvas overlay to match the window dimensions.
+ */
 const resizeRectsCanvas = () => {
   if (!rectsCanvas.value) return;
   
@@ -193,6 +213,9 @@ const resizeRectsCanvas = () => {
   rectsCanvas.value.height = window.innerHeight;
 };
 
+/**
+ * Set up window resize listener to handle canvas and map resizing.
+ */
 const setupEventListeners = () => {
   window.addEventListener('resize', () => {
     resizeRectsCanvas();
@@ -203,6 +226,9 @@ const setupEventListeners = () => {
   });
 };
 
+/**
+ * Parse and add a bounding box from user input.
+ */
 const addBoundingBox = () => {
   const parsed = parseBboxInput(bboxInput.value);
   if (!parsed) return;
@@ -225,6 +251,12 @@ const addBoundingBox = () => {
   drawRectangles();
 };
 
+/**
+ * Parse a bounding box string in format "(south, west, north, east)".
+ * 
+ * @param input - User input string
+ * @returns Parsed bounding box or null if invalid
+ */
 const parseBboxInput = (input: string): { south: number; west: number; north: number; east: number } | null => {
   const trimmed = input.trim();
   const match = trimmed.match(/^\(?\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)?$/);
@@ -242,11 +274,19 @@ const parseBboxInput = (input: string): { south: number; west: number; north: nu
   return { south, west, north, east };
 };
 
+/**
+ * Remove a bounding box from the list by index.
+ * 
+ * @param index - Index of the bounding box to remove
+ */
 const removeBoundingBox = (index: number) => {
   boundingBoxes.value.splice(index, 1);
   drawRectangles();
 };
 
+/**
+ * Clear all bounding boxes from the list.
+ */
 const clearBoundingBoxes = () => {
   boundingBoxes.value = [];
   colorIndex = 0;
@@ -254,6 +294,9 @@ const clearBoundingBoxes = () => {
   drawRectangles();
 };
 
+/**
+ * Add an H3 cell to display on the map.
+ */
 const addH3Cell = () => {
   const cellId = h3Input.value.trim().toLowerCase();
   if (!cellId) return;
@@ -273,11 +316,19 @@ const addH3Cell = () => {
   drawRectangles();
 };
 
+/**
+ * Remove an H3 cell from the list by index.
+ * 
+ * @param index - Index of the H3 cell to remove
+ */
 const removeH3Cell = (index: number) => {
   h3Cells.value.splice(index, 1);
   drawRectangles();
 };
 
+/**
+ * Clear all H3 cells from the list.
+ */
 const clearH3Cells = () => {
   h3Cells.value = [];
   h3ColorIndex = 0;
@@ -285,6 +336,9 @@ const clearH3Cells = () => {
   drawRectangles();
 };
 
+/**
+ * Draw all bounding boxes and H3 cells on the canvas overlay.
+ */
 const drawRectangles = () => {
   if (!rectsCtx.value || !rectsCanvas.value || !map.value) return;
 
@@ -303,6 +357,12 @@ const drawRectangles = () => {
   });
 };
 
+/**
+ * Draw a bounding box on the canvas.
+ * 
+ * @param ctx - Canvas rendering context
+ * @param box - Bounding box to draw
+ */
 const drawBoundingBox = (ctx: CanvasRenderingContext2D, box: BoundingBox) => {
   if (!map.value) return;
   
@@ -326,6 +386,13 @@ const drawBoundingBox = (ctx: CanvasRenderingContext2D, box: BoundingBox) => {
   ctx.stroke();
 };
 
+/**
+ * Convert a hex color string to RGBA format.
+ * 
+ * @param hex - Hex color string (e.g., "#1a1a1a")
+ * @param alpha - Alpha value (0-1)
+ * @returns RGBA color string
+ */
 const hexToRgba = (hex: string, alpha: number): string => {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -333,6 +400,12 @@ const hexToRgba = (hex: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+/**
+ * Draw an H3 cell boundary on the canvas.
+ * 
+ * @param ctx - Canvas rendering context
+ * @param cell - H3 cell to draw
+ */
 const drawH3Cell = (ctx: CanvasRenderingContext2D, cell: H3Cell) => {
   if (!map.value) return;
   
