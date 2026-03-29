@@ -30,10 +30,14 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * FogPage - Debug page demonstrating fog-of-war rendering.
+ * Displays a canvas overlay with fog that reveals H3 cells.
+ */
+
 import { ref, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent, IonRange } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
-import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const mapContainer = ref<HTMLElement | null>(null);
@@ -93,6 +97,9 @@ onUnmounted(() => {
   }
 });
 
+/**
+ * Initialize the MapLibre map instance with OSM tiles.
+ */
 const initMap = () => {
   if (!mapContainer.value) return;
 
@@ -128,6 +135,9 @@ const initMap = () => {
   map.value.on('zoom', drawFog);
 };
 
+/**
+ * Initialize the canvas overlay for fog rendering.
+ */
 const initFogCanvas = () => {
   if (!fogCanvas.value) return;
   
@@ -135,6 +145,9 @@ const initFogCanvas = () => {
   resizeFogCanvas();
 };
 
+/**
+ * Resize the fog canvas to match the window dimensions.
+ */
 const resizeFogCanvas = () => {
   if (!fogCanvas.value) return;
   
@@ -142,11 +155,17 @@ const resizeFogCanvas = () => {
   fogCanvas.value.height = window.innerHeight;
 };
 
+/**
+ * Uncompact the H3 cells to resolution 10 and remove duplicates.
+ */
 const processH3Cells = () => {
   const uncompacted = h3.uncompactCells(h3Cells.value, 10);
   visibleCells.value = Array.from(new Set(uncompacted));
 };
 
+/**
+ * Set up window resize listener to handle canvas and map resizing.
+ */
 const setupEventListeners = () => {
   window.addEventListener('resize', () => {
     resizeFogCanvas();
@@ -156,6 +175,10 @@ const setupEventListeners = () => {
   });
 };
 
+/**
+ * Render the fog of war overlay on the canvas.
+ * Fills the screen with semi-transparent color, then cuts out the visible H3 cells.
+ */
 const drawFog = () => {
   if (!fogCtx.value || !fogCanvas.value || !map.value) return;
 
@@ -178,6 +201,14 @@ const drawFog = () => {
   ctx.restore();
 };
 
+/**
+ * Draw an H3 cell boundary on the canvas.
+ * Used for creating "cutouts" in the fog layer.
+ * 
+ * @param ctx - Canvas rendering context
+ * @param h3Index - H3 cell identifier
+ * @param fill - If true, fill the cell area (for fog cutout)
+ */
 const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolean = false) => {
   if (!map.value) return;
   
@@ -205,6 +236,13 @@ const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolea
   }
 };
 
+/**
+ * Convert a hex color string to RGBA format.
+ * 
+ * @param hex - Hex color string (e.g., "#1a1a1a")
+ * @param alpha - Alpha value (0-1)
+ * @returns RGBA color string
+ */
 const hexToRgba = (hex: string, alpha: number): string => {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -212,6 +250,9 @@ const hexToRgba = (hex: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+/**
+ * Animation loop that continuously redraws the fog layer.
+ */
 const animate = () => {
   drawFog();
   animationFrame.value = requestAnimationFrame(animate);

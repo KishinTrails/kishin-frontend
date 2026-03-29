@@ -1,8 +1,23 @@
+/**
+ * POI (Point of Interest) service for fetching cell type data from the API.
+ * Handles caching, batch requests, and localStorage persistence.
+ */
+
 import { getToken } from "./authService";
 import { getCellTypeFromCache, setCellTypeInCache, syncCacheToDisk } from "./cacheService";
 
+/**
+ * Type of POI/feature in an H3 cell.
+ * - "peak": Mountain peaks and elevated features
+ * - "natural": Natural areas (parks, forests)
+ * - "industrial": Industrial zones
+ * - "none": No POI data for this cell
+ */
 export type CellType = "peak" | "natural" | "industrial" | "none";
 
+/**
+ * Response from the /poi/bycell endpoint.
+ */
 interface PoiByCellResponse {
     h3_cell: string;
     type: CellType;
@@ -19,6 +34,9 @@ interface PoiByCellResponse {
     };
 }
 
+/**
+ * Result from fetching a single cell's POI data.
+ */
 interface FetchResult {
     type: CellType | null;
     cacheHit: boolean;
@@ -27,6 +45,14 @@ interface FetchResult {
 const API_BASE = "/poi";
 const BATCH_SIZE = 100;
 
+/**
+ * Fetch cell types for multiple H3 cells in batch.
+ * Uses local cache to avoid redundant API calls.
+ * 
+ * @param cells - Array of H3 cell identifiers
+ * @param signal - Optional AbortSignal for cancellation
+ * @returns Map of H3 cell IDs to their cell types
+ */
 export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Promise<Map<string, CellType>> {
     const cellsToFetch = cells.filter((cell) => getCellTypeFromCache(cell) === null);
 
@@ -86,6 +112,14 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
     return resultMap;
 }
 
+/**
+ * Fetch POI data for a single H3 cell.
+ * Checks local cache first, then fetches from API if needed.
+ * 
+ * @param h3Cell - The H3 cell identifier
+ * @param signal - Optional AbortSignal for cancellation
+ * @returns FetchResult containing the cell type and whether it was a cache hit
+ */
 export async function fetchCellType(h3Cell: string, signal?: AbortSignal): Promise<FetchResult> {
     const cached = getCellTypeFromCache(h3Cell);
     if (cached !== null) {

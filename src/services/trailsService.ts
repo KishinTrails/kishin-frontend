@@ -1,11 +1,25 @@
+/**
+ * Trails service for fetching user exploration data from the API.
+ * Manages explored H3 cells associated with the authenticated user.
+ */
+
 import { getToken } from "./authService";
 
+/**
+ * Response from the /trails/explored endpoint.
+ */
 interface ExploredTilesResponse {
   explored: string[];
 }
 
 const API_BASE = "/trails";
 
+/**
+ * Fetch the list of H3 cells that the current user has explored.
+ * 
+ * @returns Array of H3 cell identifiers that the user has explored
+ * @throws Error if the API request fails
+ */
 export async function fetchExploredTiles(): Promise<string[]> {
   const token = getToken();
   const headers: Record<string, string> = {

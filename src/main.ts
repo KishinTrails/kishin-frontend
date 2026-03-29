@@ -1,3 +1,10 @@
+/**
+ * Kishin Frontend Application Entry Point
+ * 
+ * Initializes Vue with Ionic framework, router, and theme configuration.
+ * Mounts the app to the DOM once the router is ready.
+ */
+
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router';
