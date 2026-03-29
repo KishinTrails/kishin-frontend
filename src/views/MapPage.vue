@@ -200,7 +200,6 @@ const updateVisibleCells = () => {
   visibleFog.value = fog;
   
   fetchCellTypes();
-  drawCells();
 };
 
 const debouncedUpdate = () => {
@@ -245,6 +244,7 @@ const fetchCellTypes = async () => {
         cellTypes.value.set(cell, type as CellTypeKey);
       }
     }
+    drawCells();
   }
 };
 
