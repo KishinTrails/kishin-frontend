@@ -1,7 +1,7 @@
 import { getToken } from "./authService";
-import { getCellTypeFromCache, setCellTypeInCache } from "./cacheService";
+import { getCellTypeFromCache, setCellTypeInCache, syncCacheToDisk } from "./cacheService";
 
-type CellType = "peak" | "natural" | "industrial";
+export type CellType = "peak" | "natural" | "industrial" | "none";
 
 interface PoiByCellResponse {
     h3_cell: string;
@@ -57,20 +57,31 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
 
         try {
             const response = await fetch(url, { headers, signal });
-            if (response.status == 204) {
-                // console.warn(`[poiService] Batch failed with status ${response.status}`);
+            if (response.status === 204) {
+                for (const cell of batch) {
+                    setCellTypeInCache(cell, "none");
+                }
                 continue;
             }
             const data = await response.json();
+            const cellsWithData = new Set<string>();
             for (const cellData of data.cells) {
                 const type = cellData.type as CellType;
                 resultMap.set(cellData.h3_cell, type);
                 setCellTypeInCache(cellData.h3_cell, type);
+                cellsWithData.add(cellData.h3_cell);
+            }
+            for (const cell of batch) {
+                if (!cellsWithData.has(cell)) {
+                    setCellTypeInCache(cell, "none");
+                }
             }
         } catch (err) {
             console.warn(`[poiService] Batch error:`, err);
         }
     }
+
+    syncCacheToDisk();
 
     return resultMap;
 }
@@ -78,7 +89,7 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
 export async function fetchCellType(h3Cell: string, signal?: AbortSignal): Promise<FetchResult> {
     const cached = getCellTypeFromCache(h3Cell);
     if (cached !== null) {
-        return { type: cached, cacheHit: true };
+        return { type: cached === "none" ? null : cached, cacheHit: true };
     }
 
     const token = getToken();
@@ -97,5 +108,6 @@ export async function fetchCellType(h3Cell: string, signal?: AbortSignal): Promi
     const data: PoiByCellResponse = await response.json();
     const type = data.type;
     setCellTypeInCache(h3Cell, type);
+    syncCacheToDisk();
     return { type, cacheHit: false };
 }
