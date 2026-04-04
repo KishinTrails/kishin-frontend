@@ -12,13 +12,13 @@ type CellTypeKey = 'peak' | 'natural' | 'industrial';
 interface Props {
   map?: maplibregl.Map;
   cellTypes: Map<string, CellTypeKey>;
+  visibleCells: string[];
 }
 
 const props = defineProps<Props>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 const ctx = ref<CanvasRenderingContext2D | null>(null);
-const animationFrame = ref<number | null>(null);
 
 const peakImage = ref<HTMLImageElement | null>(null);
 const naturalImage = ref<HTMLImageElement | null>(null);
@@ -37,7 +37,7 @@ const resizeCanvas = () => {
 };
 
 const drawH3CellImage = (c: CanvasRenderingContext2D, h3Index: string, img: HTMLImageElement | null) => {
-  if (!props.map || !img) return;
+  if (!props.map || !img || typeof props.map.project !== 'function') return;
   
   const boundary = h3.cellToBoundary(h3Index);
   
@@ -54,11 +54,8 @@ const drawH3CellImage = (c: CanvasRenderingContext2D, h3Index: string, img: HTML
       c.lineTo(point.x, point.y);
     }
   });
-  
+
   c.closePath();
-  c.strokeStyle = '#999999';
-  c.lineWidth = 1;
-  c.stroke();
   
   const centerLat = boundary.reduce((sum, coord) => sum + coord[0], 0) / boundary.length;
   const centerLng = boundary.reduce((sum, coord) => sum + coord[1], 0) / boundary.length;
@@ -69,6 +66,17 @@ const drawH3CellImage = (c: CanvasRenderingContext2D, h3Index: string, img: HTML
   const baseZoom = 13;
   const baseSize = 12;
   const imgSize = baseSize * Math.pow(2, zoom - baseZoom);
+  
+  // Check if point is within visible bounds (with padding for image size)
+  if (point.x < -imgSize / 2 || point.x > canvas.value!.width + imgSize / 2 || 
+      point.y < -imgSize / 2 || point.y > canvas.value!.height + imgSize / 2) {
+    return;
+  }
+  
+  c.strokeStyle = '#999999';
+  c.lineWidth = 1;
+  c.stroke();
+
   c.drawImage(img, point.x - imgSize / 2, point.y - imgSize / 2, imgSize, imgSize);
 };
 
@@ -81,15 +89,12 @@ const draw = () => {
 
   c.clearRect(0, 0, width, height);
 
-  for (const [cell, type] of props.cellTypes) {
+  for (const cell of props.visibleCells) {
+    const type = props.cellTypes.get(cell);
+    if (!type) continue;
     const img = typeImages[type];
     drawH3CellImage(c, cell, img);
   }
-};
-
-const animate = () => {
-  draw();
-  animationFrame.value = requestAnimationFrame(animate);
 };
 
 const loadImage = (src: string): HTMLImageElement => {
@@ -98,7 +103,7 @@ const loadImage = (src: string): HTMLImageElement => {
   return img;
 };
 
-watch(() => [props.cellTypes, props.map], () => {
+watch(() => props.visibleCells, () => {
   draw();
 }, { deep: true });
 
@@ -120,13 +125,10 @@ onMounted(() => {
   
   window.addEventListener('resize', resizeCanvas);
   
-  animate();
+  draw();
 });
 
 onUnmounted(() => {
-  if (animationFrame.value) {
-    cancelAnimationFrame(animationFrame.value);
-  }
   window.removeEventListener('resize', resizeCanvas);
 });
 
