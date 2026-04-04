@@ -3,7 +3,13 @@
     <ion-content :fullscreen="true">
       <div class="map-container">
         <div ref="mapContainer" class="map"></div>
-        <canvas ref="cellsCanvas" class="cells-overlay"></canvas>
+        <FogOverlay
+          ref="fogOverlay"
+          :map="map"
+          :cells="visibleExplored"
+          :opacity="fogOpacity"
+          color="#1a1a1a"
+        />
         
         <div class="controls">
           <h3>🗺️ Trail Map</h3>
@@ -30,6 +36,7 @@ import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import FogOverlay from '@/components/FogOverlay.vue';
 import { fetchCellTypes as fetchCellTypesFromService } from '@/services/poiService';
 import { getCellTypeFromCache } from '@/services/cacheService';
 import { fetchExploredTiles } from '@/services/trailsService';
@@ -39,9 +46,8 @@ type CellTypeKey = 'peak' | 'natural' | 'industrial';
 const H3_RESOLUTION = 10;
 
 const mapContainer = ref<HTMLElement | null>(null);
-const cellsCanvas = ref<HTMLCanvasElement | null>(null);
 const map = ref<maplibregl.Map>();
-const cellsCtx = ref<CanvasRenderingContext2D | null>(null);
+const fogOverlay = ref<InstanceType<typeof FogOverlay> | null>(null);
 
 const peakImage = ref<HTMLImageElement | null>(null);
 const naturalImage = ref<HTMLImageElement | null>(null);
@@ -71,7 +77,6 @@ onMounted(async () => {
   loadImages();
   setTimeout(() => {
     initMap();
-    initCellsCanvas();
     setupEventListeners();
     updateVisibleCells();
   }, 100);
@@ -153,32 +158,12 @@ const initMap = () => {
 
   map.value.on('move', () => {
     debouncedUpdate();
-    drawCells();
+    draw();
   });
   map.value.on('zoom', () => {
     debouncedUpdate();
-    drawCells();
+    draw();
   });
-};
-
-/**
- * Initialize the canvas overlay for drawing cells and fog.
- */
-const initCellsCanvas = () => {
-  if (!cellsCanvas.value) return;
-  
-  cellsCtx.value = cellsCanvas.value.getContext('2d');
-  resizeCellsCanvas();
-};
-
-/**
- * Resize the canvas overlay to match the window dimensions.
- */
-const resizeCellsCanvas = () => {
-  if (!cellsCanvas.value) return;
-  
-  cellsCanvas.value.width = window.innerWidth;
-  cellsCanvas.value.height = window.innerHeight;
 };
 
 /**
@@ -243,11 +228,10 @@ const debouncedUpdate = () => {
 };
 
 /**
- * Set up window resize listener to handle canvas and map resizing.
+ * Set up window resize listener to handle map resizing.
  */
 const setupEventListeners = () => {
   window.addEventListener('resize', () => {
-    resizeCellsCanvas();
     if (map.value) {
       map.value.resize();
     }
@@ -286,92 +270,29 @@ const fetchCellTypes = async () => {
 };
 
 /**
- * Draw the fog layer and POI markers on the canvas overlay.
+ * Draw the fog layer and POI markers.
+ * Calls FogOverlay.draw() for fog, then draws POI markers.
  */
-const drawCells = () => {
-  if (!cellsCtx.value || !cellsCanvas.value || !map.value) return;
-
-  const ctx = cellsCtx.value;
-  const width = cellsCanvas.value.width;
-  const height = cellsCanvas.value.height;
-
-  ctx.clearRect(0, 0, width, height);
-  
-  drawFogLayer();
+const draw = () => {
+  fogOverlay.value?.draw();
   drawPoiMarkers();
-};
-
-/**
- * Draw the fog overlay covering unexplored cells.
- * Uses destination-out compositing to cut out explored cells.
- */
-const drawFogLayer = () => {
-  if (!cellsCtx.value || !cellsCanvas.value || !map.value || visibleFog.value.length === 0) return;
-
-  const ctx = cellsCtx.value;
-  const width = cellsCanvas.value.width;
-  const height = cellsCanvas.value.height;
-
-  ctx.save();
-  
-  ctx.fillStyle = hexToRgba(fogColor.value, fogOpacity.value);
-  ctx.fillRect(0, 0, width, height);
-
-  ctx.globalCompositeOperation = 'destination-out';
-  
-  for (const cell of visibleExplored.value) {
-    drawH3Cell(ctx, cell, true);
-  }
-
-  ctx.restore();
 };
 
 /**
  * Draw POI markers on explored cells.
  */
 const drawPoiMarkers = () => {
-  if (!cellsCtx.value || !map.value) return;
+  if (!fogOverlay.value) return;
+
+  const canvas = fogOverlay.value.$el as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d');
+  if (!ctx || !map.value) return;
 
   for (const cell of visibleExplored.value) {
     const type = cellTypes.value.get(cell);
     if (!type) continue;
     const img = typeImages[type as CellTypeKey];
-    drawH3CellImage(cellsCtx.value, cell, img);
-  }
-};
-
-/**
- * Draw an H3 cell boundary on the canvas.
- * Used for creating cutouts in the fog layer.
- * 
- * @param ctx - Canvas rendering context
- * @param h3Index - H3 cell identifier
- * @param fill - If true, fill the cell area (for fog cutout)
- */
-const drawH3Cell = (ctx: CanvasRenderingContext2D, h3Index: string, fill: boolean = false) => {
-  if (!map.value) return;
-  
-  const boundary = h3.cellToBoundary(h3Index);
-  
-  if (boundary.length === 0) return;
-  
-  ctx.beginPath();
-  
-  boundary.forEach((coord, i) => {
-    const point = map.value!.project([coord[1], coord[0]]);
-    
-    if (i === 0) {
-      ctx.moveTo(point.x, point.y);
-    } else {
-      ctx.lineTo(point.x, point.y);
-    }
-  });
-  
-  ctx.closePath();
-  
-  if (fill) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-    ctx.fill();
+    drawH3CellImage(ctx, cell, img);
   }
 };
 
@@ -417,20 +338,6 @@ const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HT
   const imgSize = baseSize * Math.pow(2, zoom - baseZoom);
   ctx.drawImage(img, point.x - imgSize / 2, point.y - imgSize / 2, imgSize, imgSize);
 };
-
-/**
- * Convert a hex color string to RGBA format.
- * 
- * @param hex - Hex color string (e.g., "#1a1a1a")
- * @param alpha - Alpha value (0-1)
- * @returns RGBA color string
- */
-const hexToRgba = (hex: string, alpha: number): string => {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
 </script>
 
 <style scoped>
@@ -446,15 +353,7 @@ const hexToRgba = (hex: string, alpha: number): string => {
   height: 100%;
 }
 
-.cells-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1;
-}
+
 
 .controls {
   position: absolute;
