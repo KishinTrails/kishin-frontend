@@ -14,6 +14,7 @@
           ref="poiOverlay"
           :map="map"
           :cellTypes="cellTypes"
+          :visibleCells="visibleExplored"
         />
         
         <div class="controls">

@@ -32,7 +32,7 @@ const resizeCanvas = () => {
 };
 
 const drawH3Cell = (c: CanvasRenderingContext2D, h3Index: string, fill: boolean = false) => {
-  if (!props.map) return;
+  if (!props.map || typeof props.map.project !== 'function') return;
   
   const boundary = h3.cellToBoundary(h3Index);
   if (boundary.length === 0) return;

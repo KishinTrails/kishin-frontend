@@ -41,8 +41,8 @@ describe("PoiOverlay", () => {
 
         mockMap = {
             project: vi.fn((coord: [number, number]) => ({
-                x: coord[0] * 1000,
-                y: coord[1] * 1000,
+                x: 150,
+                y: 75,
             })),
             getZoom: vi.fn(() => 16),
         };
@@ -58,15 +58,6 @@ describe("PoiOverlay", () => {
             }
             return null;
         };
-
-        vi.spyOn(window, "requestAnimationFrame").mockImplementation(
-            (callback: FrameRequestCallback) => {
-                setTimeout(() => callback(0), 16);
-                return 0;
-            }
-        );
-
-        vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
 
         Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
             configurable: true,
@@ -85,7 +76,6 @@ describe("PoiOverlay", () => {
         vi.clearAllMocks();
         vi.restoreAllMocks();
         mockContext.clearHistory();
-        MockImage.clearInstances();
     });
 
     describe("Rendering", () => {
@@ -94,6 +84,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -106,6 +97,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -122,6 +114,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1", "cell2"],
                 },
             });
 
@@ -133,6 +126,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -144,6 +138,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -160,6 +155,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -184,6 +180,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -201,6 +198,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -216,6 +214,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -223,36 +222,6 @@ describe("PoiOverlay", () => {
             await wrapper.unmount();
 
             expect(removeEventListenerSpy).toHaveBeenCalledWith("resize", expect.any(Function));
-        });
-
-        it("cancels animation frame on unmount", async () => {
-            const cancelAnimationFrameSpy = vi.spyOn(window, "cancelAnimationFrame");
-            let capturedFrameId: number = 0;
-            let frameCounter = 1;
-
-            vi.spyOn(window, "requestAnimationFrame").mockImplementation(
-                (callback: FrameRequestCallback) => {
-                    const id = frameCounter++;
-                    setTimeout(() => callback(0), 16);
-                    if (!capturedFrameId) {
-                        capturedFrameId = id;
-                    }
-                    return id;
-                }
-            );
-
-            wrapper = mount(PoiOverlay, {
-                props: {
-                    map: mockMap,
-                    cellTypes: new Map(),
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            await wrapper.unmount();
-
-            expect(cancelAnimationFrameSpy).toHaveBeenCalled();
         });
     });
 
@@ -262,6 +231,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -277,6 +247,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -292,6 +263,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -307,6 +279,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -323,6 +296,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -342,6 +316,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -361,6 +336,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: [],
                 },
             });
 
@@ -368,7 +344,7 @@ describe("PoiOverlay", () => {
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            expect(beginPathCalls.length).toBeGreaterThan(0);
+            expect(beginPathCalls.length).toBe(0);
         });
 
         it("skips invalid cells with empty boundary", async () => {
@@ -380,6 +356,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["invalid"],
                 },
             });
 
@@ -404,6 +381,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -423,6 +401,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -444,6 +423,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -468,6 +448,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -489,6 +470,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -508,6 +490,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -527,6 +510,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -548,6 +532,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1", "cell2", "cell3"],
                 },
             });
 
@@ -555,7 +540,7 @@ describe("PoiOverlay", () => {
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            expect(beginPathCalls.length).toBeGreaterThan(3);
+            expect(beginPathCalls.length).toBe(3);
         });
 
         it("handles empty cellTypes Map", async () => {
@@ -565,6 +550,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: [],
                 },
             });
 
@@ -580,11 +566,33 @@ describe("PoiOverlay", () => {
     });
 
     describe("Reactivity", () => {
+        it("redraws when visibleCells changes", async () => {
+            wrapper = mount(PoiOverlay, {
+                props: {
+                    map: mockMap,
+                    cellTypes: new Map([["cell1", "peak"]]),
+                    visibleCells: [],
+                },
+            });
+
+            await wrapper.vm.$nextTick();
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            mockContext.clearHistory();
+
+            await wrapper.setProps({ visibleCells: ["cell1"] });
+            await wrapper.vm.$nextTick();
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            const beginPathCalls = mockContext.getCallsByMethod("beginPath");
+            expect(beginPathCalls.length).toBeGreaterThan(0);
+        });
+
         it("redraws when cellTypes changes", async () => {
             wrapper = mount(PoiOverlay, {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -593,9 +601,9 @@ describe("PoiOverlay", () => {
             mockContext.clearHistory();
 
             const newCellTypes = new Map<string, CellTypeKey>([
-                ["new-cell", "peak"],
+                ["cell1", "peak"],
             ]);
-            await wrapper.setProps({ cellTypes: newCellTypes });
+            await wrapper.setProps({ cellTypes: newCellTypes, visibleCells: ["cell1"] });
             await wrapper.vm.$nextTick();
             await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -603,91 +611,46 @@ describe("PoiOverlay", () => {
             expect(beginPathCalls.length).toBeGreaterThan(0);
         });
 
-        it("redraws when cellTypes Map is updated", async () => {
-            const cellTypes = new Map<string, CellTypeKey>();
+        it("only draws cells in visibleCells", async () => {
+            const cellTypes = new Map<string, CellTypeKey>([
+                ["cell1", "peak"],
+                ["cell2", "natural"],
+            ]);
 
             wrapper = mount(PoiOverlay, {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: ["cell1"],
                 },
             });
 
             await wrapper.vm.$nextTick();
             await new Promise((resolve) => setTimeout(resolve, 50));
-            mockContext.clearHistory();
-
-            cellTypes.set("cell1", "peak");
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
 
             const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            expect(beginPathCalls.length).toBeGreaterThan(0);
+            expect(beginPathCalls.length).toBe(1);
         });
 
-        it("handles cellTypes Map mutations", async () => {
-            const cellTypes = new Map<string, CellTypeKey>();
+        it("does not draw cells not in visibleCells", async () => {
+            const cellTypes = new Map<string, CellTypeKey>([
+                ["cell1", "peak"],
+                ["cell2", "natural"],
+            ]);
 
             wrapper = mount(PoiOverlay, {
                 props: {
                     map: mockMap,
                     cellTypes,
+                    visibleCells: [],
                 },
             });
 
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            mockContext.clearHistory();
-
-            cellTypes.set("new-cell", "peak");
             await wrapper.vm.$nextTick();
             await new Promise((resolve) => setTimeout(resolve, 50));
 
             const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            expect(beginPathCalls.length).toBeGreaterThan(0);
-        });
-    });
-
-    describe("Animation", () => {
-        it("starts animation loop on mount", async () => {
-            const requestAnimationFrameSpy = vi.spyOn(window, "requestAnimationFrame");
-
-            wrapper = mount(PoiOverlay, {
-                props: {
-                    map: mockMap,
-                    cellTypes: new Map(),
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            expect(requestAnimationFrameSpy).toHaveBeenCalled();
-        });
-
-        it("continues animation loop with multiple frames", async () => {
-            let frameCount = 0;
-            vi.spyOn(window, "requestAnimationFrame").mockImplementation(
-                (callback: FrameRequestCallback) => {
-                    frameCount++;
-                    if (frameCount <= 3) {
-                        setTimeout(() => callback(0), 16);
-                    }
-                    return frameCount;
-                }
-            );
-
-            wrapper = mount(PoiOverlay, {
-                props: {
-                    map: mockMap,
-                    cellTypes: new Map(),
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            expect(frameCount).toBeGreaterThan(1);
+            expect(beginPathCalls.length).toBe(0);
         });
     });
 
@@ -697,6 +660,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map(),
+                    visibleCells: [],
                 },
             });
 
@@ -715,6 +679,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: undefined,
                     cellTypes: new Map([["cell1", "peak"]]),
+                    visibleCells: ["cell1"],
                 },
             });
 
@@ -735,6 +700,7 @@ describe("PoiOverlay", () => {
                 props: {
                     map: mockMap,
                     cellTypes: new Map([["cell1", "peak"]]),
+                    visibleCells: ["cell1"],
                 },
             });
 

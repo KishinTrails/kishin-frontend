@@ -1,6 +1,6 @@
 /**
  * Vue Router configuration for Kishin frontend.
- * 
+ *
  * Defines application routes with authentication protection for protected routes.
  * Uses Ionic Vue Router with history mode.
  */
@@ -44,12 +44,6 @@ const routes: Array<RouteRecordRaw> = [
         meta: { requiresAuth: true },
     },
     {
-        path: "/debug/fog",
-        name: "DebugFog",
-        component: FogPage,
-        meta: { requiresAuth: true },
-    },
-    {
         path: "/debug/map",
         name: "DebugMap",
         component: ClearmapPage,
@@ -78,9 +72,9 @@ router.beforeEach((to, from, next) => {
     const isAuth = isAuthenticated();
 
     if (requiresAuth && !isAuth) {
-        next('/login');
-    } else if (to.path === '/login' && isAuth) {
-        next('/map');
+        next("/login");
+    } else if (to.path === "/login" && isAuth) {
+        next("/map");
     } else {
         next();
     }

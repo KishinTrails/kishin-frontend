@@ -1,14 +1,12 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, test, vi, beforeEach, afterEach, beforeAll } from "vitest";
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import MapPage from "./MapPage.vue";
 import FogOverlay from "@/components/FogOverlay.vue";
 import PoiOverlay from "@/components/PoiOverlay.vue";
 
-let mockMapInstance: any;
-
-beforeAll(() => {
-    vi.mock("maplibregl", () => {
-        mockMapInstance = {
+vi.mock("maplibregl", () => {
+    return {
+        default: vi.fn(() => ({
             on: vi.fn(),
             addControl: vi.fn(),
             project: vi.fn().mockReturnValue({ x: 100, y: 100 }),
@@ -19,13 +17,9 @@ beforeAll(() => {
             getZoom: vi.fn().mockReturnValue(16),
             resize: vi.fn(),
             remove: vi.fn(),
-        };
-
-        return {
-            default: vi.fn(() => mockMapInstance),
-            NavigationControl: vi.fn(),
-        };
-    });
+        })),
+        NavigationControl: vi.fn(),
+    };
 });
 
 vi.mock("@ionic/vue", () => ({
