@@ -6,9 +6,14 @@
         <FogOverlay
           ref="fogOverlay"
           :map="map"
-          :cells="visibleExplored"
+          :exploredCells="visibleExplored"
           :opacity="fogOpacity"
           color="#1a1a1a"
+        />
+        <PoiOverlay
+          ref="poiOverlay"
+          :map="map"
+          :cellTypes="cellTypes"
         />
         
         <div class="controls">
@@ -37,6 +42,7 @@ import maplibregl from 'maplibre-gl';
 import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import FogOverlay from '@/components/FogOverlay.vue';
+import PoiOverlay from '@/components/PoiOverlay.vue';
 import { fetchCellTypes as fetchCellTypesFromService } from '@/services/poiService';
 import { getCellTypeFromCache } from '@/services/cacheService';
 import { fetchExploredTiles } from '@/services/trailsService';
@@ -48,12 +54,9 @@ const H3_RESOLUTION = 10;
 const mapContainer = ref<HTMLElement | null>(null);
 const map = ref<maplibregl.Map>();
 const fogOverlay = ref<InstanceType<typeof FogOverlay> | null>(null);
+const poiOverlay = ref<InstanceType<typeof PoiOverlay> | null>(null);
 
-const peakImage = ref<HTMLImageElement | null>(null);
-const naturalImage = ref<HTMLImageElement | null>(null);
-const industrialImage = ref<HTMLImageElement | null>(null);
-
-const cellTypes = ref<Map<string, CellTypeKey | null>>(new Map());
+const cellTypes = ref<Map<string, CellTypeKey>>(new Map());
 const visitedCells = ref<Set<string>>(new Set());
 
 const visibleCells = ref<string[]>([]);
@@ -66,15 +69,8 @@ const fogColor = ref('#1a1a1a');
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let abortController: AbortController | null = null;
 
-const typeImages: Record<CellTypeKey, HTMLImageElement | null> = {
-  peak: null,
-  natural: null,
-  industrial: null
-};
-
 onMounted(async () => {
   await loadExploredTiles();
-  loadImages();
   setTimeout(() => {
     initMap();
     setupEventListeners();
@@ -92,25 +88,6 @@ const loadExploredTiles = async () => {
   } catch (err) {
     console.error('Failed to load explored tiles:', err);
   }
-};
-
-/**
- * Load marker images for POI types (peak, natural, industrial).
- */
-const loadImages = () => {
-  const loadImage = (src: string): HTMLImageElement => {
-    const img = new Image();
-    img.src = src;
-    return img;
-  };
-
-  peakImage.value = loadImage('/tori.png');
-  naturalImage.value = loadImage('/nature.png');
-  industrialImage.value = loadImage('/factory.png');
-
-  typeImages.peak = peakImage.value;
-  typeImages.natural = naturalImage.value;
-  typeImages.industrial = industrialImage.value;
 };
 
 onUnmounted(() => {
@@ -265,78 +242,17 @@ const fetchCellTypes = async () => {
         cellTypes.value.set(cell, type as CellTypeKey);
       }
     }
-    drawCells();
+    draw();
   }
 };
 
 /**
  * Draw the fog layer and POI markers.
- * Calls FogOverlay.draw() for fog, then draws POI markers.
+ * Calls FogOverlay.draw() for fog, then PoiOverlay.draw() for markers.
  */
 const draw = () => {
   fogOverlay.value?.draw();
-  drawPoiMarkers();
-};
-
-/**
- * Draw POI markers on explored cells.
- */
-const drawPoiMarkers = () => {
-  if (!fogOverlay.value) return;
-
-  const canvas = fogOverlay.value.$el as HTMLCanvasElement;
-  const ctx = canvas.getContext('2d');
-  if (!ctx || !map.value) return;
-
-  for (const cell of visibleExplored.value) {
-    const type = cellTypes.value.get(cell);
-    if (!type) continue;
-    const img = typeImages[type as CellTypeKey];
-    drawH3CellImage(ctx, cell, img);
-  }
-};
-
-/**
- * Draw an H3 cell boundary with a POI marker image at its center.
- * 
- * @param ctx - Canvas rendering context
- * @param h3Index - H3 cell identifier
- * @param img - Marker image to draw at cell center
- */
-const drawH3CellImage = (ctx: CanvasRenderingContext2D, h3Index: string, img: HTMLImageElement | null) => {
-  if (!map.value || !img) return;
-  
-  const boundary = h3.cellToBoundary(h3Index);
-  
-  if (boundary.length === 0) return;
-  
-  ctx.beginPath();
-  
-  boundary.forEach((coord, i) => {
-    const point = map.value!.project([coord[1], coord[0]]);
-    
-    if (i === 0) {
-      ctx.moveTo(point.x, point.y);
-    } else {
-      ctx.lineTo(point.x, point.y);
-    }
-  });
-  
-  ctx.closePath();
-  ctx.strokeStyle = '#999999';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  
-  const centerLat = boundary.reduce((sum, coord) => sum + coord[0], 0) / boundary.length;
-  const centerLng = boundary.reduce((sum, coord) => sum + coord[1], 0) / boundary.length;
-  
-  const point = map.value.project([centerLng, centerLat]);
-  
-  const zoom = map.value.getZoom();
-  const baseZoom = 13;
-  const baseSize = 12;
-  const imgSize = baseSize * Math.pow(2, zoom - baseZoom);
-  ctx.drawImage(img, point.x - imgSize / 2, point.y - imgSize / 2, imgSize, imgSize);
+  poiOverlay.value?.draw();
 };
 </script>
 

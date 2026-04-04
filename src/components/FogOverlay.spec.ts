@@ -76,7 +76,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
@@ -88,7 +88,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -100,7 +100,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                     opacity: 0.5,
                 },
             });
@@ -112,7 +112,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                     color: "#ff0000",
                 },
             });
@@ -124,7 +124,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -140,7 +140,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -181,7 +181,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -196,7 +196,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -225,7 +225,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -242,7 +242,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -268,7 +268,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                     color: "#1a1a1a",
                     opacity: 0.85,
                 },
@@ -288,7 +288,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                     color: "#1a1a1a",
                     opacity: 0.85,
                 },
@@ -304,7 +304,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
@@ -318,7 +318,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -333,11 +333,11 @@ describe("FogOverlay", () => {
     });
 
     describe("H3 Cell Drawing", () => {
-        it("draws H3 cells from cells prop", async () => {
+        it("draws H3 cells from exploredCells prop", async () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
@@ -352,7 +352,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
@@ -369,7 +369,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
@@ -386,7 +386,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
@@ -401,7 +401,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
@@ -416,7 +416,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["invalid"],
+                    exploredCells: ["invalid"],
                 },
             });
 
@@ -439,7 +439,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell-1", "test-cell-2"],
+                    exploredCells: ["test-cell-1", "test-cell-2"],
                 },
             });
 
@@ -452,11 +452,11 @@ describe("FogOverlay", () => {
     });
 
     describe("Reactivity", () => {
-        it("redraws when cells prop changes", async () => {
+        it("redraws when exploredCells prop changes", async () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -464,7 +464,7 @@ describe("FogOverlay", () => {
             await new Promise((resolve) => setTimeout(resolve, 50));
             mockContext.clearHistory();
 
-            await wrapper.setProps({ cells: ["new-cell"] });
+            await wrapper.setProps({ exploredCells: ["new-cell"] });
             await wrapper.vm.$nextTick();
             await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -476,7 +476,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                     opacity: 0.5,
                 },
             });
@@ -497,7 +497,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                     color: "#000000",
                 },
             });
@@ -518,7 +518,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -549,7 +549,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -574,7 +574,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -601,7 +601,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -635,7 +635,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 
@@ -653,7 +653,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: undefined,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
@@ -673,7 +673,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: ["test-cell"],
+                    exploredCells: ["test-cell"],
                 },
             });
 
