@@ -7,7 +7,6 @@
 
 import { createRouter, createWebHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
-import FogPage from "../views/FogPage.vue";
 import MapPage from "../views/MapPage.vue";
 import ClearmapPage from "../views/ClearmapPage.vue";
 import RectanglePage from "../views/RectanglePage.vue";

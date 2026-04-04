@@ -300,7 +300,7 @@ describe("MapPage.vue", () => {
 
             vm.visibleExplored = ["cell1", "cell2"];
             vm.cellTypes = new Map();
-            getCellTypeFromCache.mockReturnValue("peak");
+            (getCellTypeFromCache as any).mockReturnValue("peak");
 
             await vm.fetchCellTypes();
 
@@ -316,7 +316,7 @@ describe("MapPage.vue", () => {
 
             vm.visibleExplored = ["cell1", "cell2"];
             vm.cellTypes = new Map();
-            getCellTypeFromCache.mockReturnValueOnce("peak").mockReturnValueOnce(null);
+            (getCellTypeFromCache as any).mockReturnValueOnce("peak").mockReturnValueOnce(null);
 
             await vm.fetchCellTypes();
 

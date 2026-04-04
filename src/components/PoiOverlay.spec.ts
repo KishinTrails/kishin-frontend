@@ -50,9 +50,9 @@ describe("PoiOverlay", () => {
         mockCanvas = new MockHTMLCanvasElement();
         mockContext = mockCanvas.getMockContext()!;
 
-        HTMLCanvasElement.prototype.getContext = function (
+        (HTMLCanvasElement.prototype.getContext as any) = function (
             contextType: string
-        ): MockCanvasRenderingContext2D | null {
+        ): any {
             if (contextType === "2d") {
                 return mockContext;
             }
@@ -570,7 +570,7 @@ describe("PoiOverlay", () => {
             wrapper = mount(PoiOverlay, {
                 props: {
                     map: mockMap,
-                    cellTypes: new Map([["cell1", "peak"]]),
+                    cellTypes: new Map<string, CellTypeKey>([["cell1", "peak"]]),
                     visibleCells: [],
                 },
             });
@@ -678,7 +678,7 @@ describe("PoiOverlay", () => {
             wrapper = mount(PoiOverlay, {
                 props: {
                     map: undefined,
-                    cellTypes: new Map([["cell1", "peak"]]),
+                    cellTypes: new Map<string, CellTypeKey>([["cell1", "peak"]]),
                     visibleCells: ["cell1"],
                 },
             });
@@ -699,7 +699,7 @@ describe("PoiOverlay", () => {
             wrapper = mount(PoiOverlay, {
                 props: {
                     map: mockMap,
-                    cellTypes: new Map([["cell1", "peak"]]),
+                    cellTypes: new Map<string, CellTypeKey>([["cell1", "peak"]]),
                     visibleCells: ["cell1"],
                 },
             });

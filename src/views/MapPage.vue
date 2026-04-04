@@ -2,28 +2,37 @@
   <ion-page>
     <ion-content :fullscreen="true">
       <div class="map-container">
-        <div ref="mapContainer" class="map"></div>
+        <div
+          ref="mapContainer"
+          class="map"
+        />
         <FogOverlay
           ref="fogOverlay"
           :map="map"
-          :exploredCells="visibleExplored"
+          :explored-cells="visibleExplored"
           :opacity="fogOpacity"
           color="#1a1a1a"
         />
         <PoiOverlay
           ref="poiOverlay"
           :map="map"
-          :cellTypes="cellTypes"
-          :visibleCells="visibleExplored"
+          :cell-types="cellTypes"
+          :visible-cells="visibleExplored"
         />
         
         <div class="controls">
           <h3>🗺️ Trail Map</h3>
           
           <div class="stats">
-            <div class="stat-item">Explored: {{ visitedCells.size }}</div>
-            <div class="stat-item">Visible Explored: {{ visibleExplored.length }}</div>
-            <div class="stat-item">Visible Fog: {{ visibleFog.length }}</div>
+            <div class="stat-item">
+              Explored: {{ visitedCells.size }}
+            </div>
+            <div class="stat-item">
+              Visible Explored: {{ visibleExplored.length }}
+            </div>
+            <div class="stat-item">
+              Visible Fog: {{ visibleFog.length }}
+            </div>
           </div>
         </div>
       </div>

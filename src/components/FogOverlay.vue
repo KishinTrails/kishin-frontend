@@ -1,15 +1,19 @@
 <template>
-  <canvas ref="canvas" class="fog-overlay"></canvas>
+  <canvas
+    ref="canvas"
+    class="fog-overlay"
+  />
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import * as h3 from 'h3-js';
 import { hexToRgba } from '@/utils/color';
+import type { Map as MaplibreMap } from 'maplibre-gl';
 
 interface Props {
-  map?: maplibregl.Map;
-  exploredCells: string[];
+  map?: MaplibreMap;
+  exploredCells?: string[];
   opacity?: number;
   color?: string;
 }
