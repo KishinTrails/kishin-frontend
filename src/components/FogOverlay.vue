@@ -9,14 +9,14 @@ import { hexToRgba } from '@/utils/color';
 
 interface Props {
   map?: maplibregl.Map;
-  cells: string[];
+  exploredCells: string[];
   opacity?: number;
   color?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   map: undefined,
-  cells: () => [],
+  exploredCells: () => [],
   opacity: 0.85,
   color: '#1a1a1a'
 });
@@ -72,7 +72,7 @@ const draw = () => {
 
   c.globalCompositeOperation = 'destination-out';
   
-  props.cells.forEach(cell => {
+  props.exploredCells.forEach(cell => {
     drawH3Cell(c, cell, true);
   });
 
@@ -84,7 +84,7 @@ const animate = () => {
   animationFrame.value = requestAnimationFrame(animate);
 };
 
-watch(() => [props.cells, props.opacity, props.color, props.map], () => {
+watch(() => [props.exploredCells, props.opacity, props.color, props.map], () => {
   draw();
 }, { deep: true });
 
