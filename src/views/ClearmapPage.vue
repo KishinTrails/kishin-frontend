@@ -2,21 +2,33 @@
   <ion-page>
     <ion-content :fullscreen="true">
       <div class="map-container">
-        <div ref="mapContainer" class="map"></div>
-        <canvas ref="cellsCanvas" class="cells-overlay"></canvas>
+        <div
+          ref="mapContainer"
+          class="map"
+        />
+        <canvas
+          ref="cellsCanvas"
+          class="cells-overlay"
+        />
         
         <div class="controls">
           <h3>🗺️ Trail Map</h3>
           
           <div class="stats">
-            <div class="stat-item">Rendered Cells: {{ visibleCells.length }}</div>
-            <div class="stat-item">Pending Calls: {{ remainingCalls }}</div>
-            <div class="stat-item">Cache Hits: {{ cacheHits }}</div>
-            <div class="stat-item">Cache Misses: {{ cacheMisses }}</div>
+            <div class="stat-item">
+              Rendered Cells: {{ visibleCells.length }}
+            </div>
+            <div class="stat-item">
+              Pending Calls: {{ remainingCalls }}
+            </div>
+            <div class="stat-item">
+              Cache Hits: {{ cacheHits }}
+            </div>
+            <div class="stat-item">
+              Cache Misses: {{ cacheMisses }}
+            </div>
           </div>
         </div>
-
-
       </div>
     </ion-content>
   </ion-page>

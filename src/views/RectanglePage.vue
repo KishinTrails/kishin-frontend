@@ -2,8 +2,14 @@
   <ion-page>
     <ion-content :fullscreen="true">
       <div class="map-container">
-        <div ref="mapContainer" class="map"></div>
-        <canvas ref="rectsCanvas" class="rects-overlay"></canvas>
+        <div
+          ref="mapContainer"
+          class="map"
+        />
+        <canvas
+          ref="rectsCanvas"
+          class="rects-overlay"
+        />
         
         <div class="controls">
           <h3>📦 Bounding Boxes</h3>
@@ -11,37 +17,80 @@
           <div class="input-group">
             <label>Bounding Box (south, west, north, east)</label>
             <input 
-              type="text" 
               v-model="bboxInput" 
+              type="text" 
               placeholder="(45.767,2.961,45.775,2.971)"
               @keyup.enter="addBoundingBox"
-            />
+            >
           </div>
           
           <div class="input-group">
             <label>Color</label>
             <select v-model="selectedColor">
-              <option value="#e74c3c">Red</option>
-              <option value="#3498db">Blue</option>
-              <option value="#27ae60">Green</option>
-              <option value="#f39c12">Orange</option>
-              <option value="#9b59b6">Purple</option>
-              <option value="#1abc9c">Teal</option>
+              <option value="#e74c3c">
+                Red
+              </option>
+              <option value="#3498db">
+                Blue
+              </option>
+              <option value="#27ae60">
+                Green
+              </option>
+              <option value="#f39c12">
+                Orange
+              </option>
+              <option value="#9b59b6">
+                Purple
+              </option>
+              <option value="#1abc9c">
+                Teal
+              </option>
             </select>
           </div>
           
-          <button class="add-btn" @click="addBoundingBox">Add Rectangle</button>
-          <button class="clear-btn" @click="clearBoundingBoxes" v-if="boundingBoxes.length > 0">Clear All</button>
+          <button
+            class="add-btn"
+            @click="addBoundingBox"
+          >
+            Add Rectangle
+          </button>
+          <button
+            v-if="boundingBoxes.length > 0"
+            class="clear-btn"
+            @click="clearBoundingBoxes"
+          >
+            Clear All
+          </button>
           
-          <div class="stats" v-if="boundingBoxes.length > 0">
-            <div class="stat-item">Rectangles: {{ boundingBoxes.length }}</div>
+          <div
+            v-if="boundingBoxes.length > 0"
+            class="stats"
+          >
+            <div class="stat-item">
+              Rectangles: {{ boundingBoxes.length }}
+            </div>
           </div>
           
-          <div class="rect-list" v-if="boundingBoxes.length > 0">
-            <div class="rect-item" v-for="(box, index) in boundingBoxes" :key="index">
-              <span class="rect-color" :style="{ backgroundColor: box.color }"></span>
+          <div
+            v-if="boundingBoxes.length > 0"
+            class="rect-list"
+          >
+            <div
+              v-for="(box, index) in boundingBoxes"
+              :key="index"
+              class="rect-item"
+            >
+              <span
+                class="rect-color"
+                :style="{ backgroundColor: box.color }"
+              />
               <span class="rect-coords">{{ box.south.toFixed(3) }}, {{ box.west.toFixed(3) }}, {{ box.north.toFixed(3) }}, {{ box.east.toFixed(3) }}</span>
-              <button class="remove-btn" @click="removeBoundingBox(index)">×</button>
+              <button
+                class="remove-btn"
+                @click="removeBoundingBox(index)"
+              >
+                ×
+              </button>
             </div>
           </div>
           
@@ -51,37 +100,80 @@
             <div class="input-group">
               <label>H3 Cell ID</label>
               <input 
-                type="text" 
                 v-model="h3Input" 
+                type="text" 
                 placeholder="8a1f96069aeffff"
                 @keyup.enter="addH3Cell"
-              />
+              >
             </div>
             
             <div class="input-group">
               <label>Color</label>
               <select v-model="selectedH3Color">
-                <option value="#9b59b6">Purple</option>
-                <option value="#e74c3c">Red</option>
-                <option value="#3498db">Blue</option>
-                <option value="#f39c12">Orange</option>
-                <option value="#27ae60">Green</option>
-                <option value="#1abc9c">Teal</option>
+                <option value="#9b59b6">
+                  Purple
+                </option>
+                <option value="#e74c3c">
+                  Red
+                </option>
+                <option value="#3498db">
+                  Blue
+                </option>
+                <option value="#f39c12">
+                  Orange
+                </option>
+                <option value="#27ae60">
+                  Green
+                </option>
+                <option value="#1abc9c">
+                  Teal
+                </option>
               </select>
             </div>
             
-            <button class="add-btn add-btn-h3" @click="addH3Cell">Add H3 Cell</button>
-            <button class="clear-btn clear-btn-h3" @click="clearH3Cells" v-if="h3Cells.length > 0">Clear All</button>
+            <button
+              class="add-btn add-btn-h3"
+              @click="addH3Cell"
+            >
+              Add H3 Cell
+            </button>
+            <button
+              v-if="h3Cells.length > 0"
+              class="clear-btn clear-btn-h3"
+              @click="clearH3Cells"
+            >
+              Clear All
+            </button>
             
-            <div class="stats" v-if="h3Cells.length > 0">
-              <div class="stat-item">H3 Cells: {{ h3Cells.length }}</div>
+            <div
+              v-if="h3Cells.length > 0"
+              class="stats"
+            >
+              <div class="stat-item">
+                H3 Cells: {{ h3Cells.length }}
+              </div>
             </div>
             
-            <div class="rect-list" v-if="h3Cells.length > 0">
-              <div class="rect-item" v-for="(cell, index) in h3Cells" :key="index">
-                <span class="rect-color" :style="{ backgroundColor: cell.color }"></span>
+            <div
+              v-if="h3Cells.length > 0"
+              class="rect-list"
+            >
+              <div
+                v-for="(cell, index) in h3Cells"
+                :key="index"
+                class="rect-item"
+              >
+                <span
+                  class="rect-color"
+                  :style="{ backgroundColor: cell.color }"
+                />
                 <span class="rect-coords">{{ cell.cellId }}</span>
-                <button class="remove-btn" @click="removeH3Cell(index)">×</button>
+                <button
+                  class="remove-btn"
+                  @click="removeH3Cell(index)"
+                >
+                  ×
+                </button>
               </div>
             </div>
           </div>

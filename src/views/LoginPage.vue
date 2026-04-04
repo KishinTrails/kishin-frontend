@@ -4,30 +4,39 @@
       <div class="login-container">
         <div class="login-card">
           <h1>Kishin</h1>
-          <p class="subtitle">Sign in to continue</p>
+          <p class="subtitle">
+            Sign in to continue
+          </p>
 
           <form @submit.prevent="handleLogin">
             <ion-item>
-              <ion-label position="stacked">Username</ion-label>
+              <ion-label position="stacked">
+                Username
+              </ion-label>
               <ion-input
                 v-model="username"
                 type="text"
                 autocomplete="username"
                 required
-              ></ion-input>
+              />
             </ion-item>
 
             <ion-item>
-              <ion-label position="stacked">Password</ion-label>
+              <ion-label position="stacked">
+                Password
+              </ion-label>
               <ion-input
                 v-model="password"
                 type="password"
                 autocomplete="current-password"
                 required
-              ></ion-input>
+              />
             </ion-item>
 
-            <div v-if="errorMessage" class="error-message">
+            <div
+              v-if="errorMessage"
+              class="error-message"
+            >
               {{ errorMessage }}
             </div>
 
@@ -36,7 +45,10 @@
               expand="block"
               :disabled="isLoading"
             >
-              <ion-spinner v-if="isLoading" name="dots"></ion-spinner>
+              <ion-spinner
+                v-if="isLoading"
+                name="dots"
+              />
               <span v-else>Sign In</span>
             </ion-button>
           </form>

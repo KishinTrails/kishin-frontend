@@ -36,9 +36,9 @@ describe("FogOverlay", () => {
         mockCanvas = new MockHTMLCanvasElement();
         mockContext = mockCanvas.getMockContext()!;
 
-        HTMLCanvasElement.prototype.getContext = function (
+        (HTMLCanvasElement.prototype.getContext as any) = function (
             contextType: string
-        ): MockCanvasRenderingContext2D | null {
+        ): any {
             if (contextType === "2d") {
                 return mockContext;
             }
@@ -164,7 +164,7 @@ describe("FogOverlay", () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    cells: [],
+                    exploredCells: [],
                 },
             });
 

@@ -1,5 +1,8 @@
 <template>
-  <canvas ref="canvas" class="poi-overlay"></canvas>
+  <canvas
+    ref="canvas"
+    class="poi-overlay"
+  />
 </template>
 
 <script setup lang="ts">

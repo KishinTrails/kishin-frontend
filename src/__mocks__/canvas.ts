@@ -3,8 +3,17 @@ interface MockCall {
   args: any[];
 }
 
+type CanvasImageSmoothingQuality = 'low' | 'medium' | 'high';
+
 export class MockCanvasRenderingContext2D {
   private calls: MockCall[] = [];
+  
+  // Required CanvasRenderingContext2D properties
+  canvas: HTMLCanvasElement = null as any;
+  globalAlpha: number = 1.0;
+  filter: string = 'none';
+  imageSmoothingEnabled: boolean = true;
+  imageSmoothingQuality: CanvasImageSmoothingQuality | undefined = 'low';
   
   fillStyle: string | CanvasGradient | CanvasPattern = '#000000';
   globalCompositeOperation: string = 'source-over';
@@ -191,8 +200,6 @@ export class MockCanvasRenderingContext2D {
   fontKerning: CanvasFontKerning = 'auto';
   fontStretch: string = 'normal';
   fontVariantCaps: string = 'normal';
-  imageSmoothingEnabled: boolean = true;
-  imageSmoothingQuality: CanvasImageSmoothingQuality = 'low';
   letterSpacing: string = '0px';
   lineDash: number[] = [];
   textRendering: string = 'auto';
@@ -222,7 +229,7 @@ export class MockHTMLCanvasElement {
   
   getContext(contextType: string, contextAttributes?: any): MockCanvasRenderingContext2D | null {
     if (contextType === '2d' && this.mockContext) {
-      return this.mockContext;
+      return this.mockContext as any;
     }
     return null;
   }
