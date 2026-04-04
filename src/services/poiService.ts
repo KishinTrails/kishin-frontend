@@ -48,7 +48,7 @@ const BATCH_SIZE = 100;
 /**
  * Fetch cell types for multiple H3 cells in batch.
  * Uses local cache to avoid redundant API calls.
- * 
+ *
  * @param cells - Array of H3 cell identifiers
  * @param signal - Optional AbortSignal for cancellation
  * @returns Map of H3 cell IDs to their cell types
@@ -77,9 +77,6 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
             params.append("h3Cells", cell);
         }
         const url = `${API_BASE}/bycells?${params.toString()}`;
-        console.debug(
-            `[poiService] Fetching batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.length} cells, URL length: ${url.length}`,
-        );
 
         try {
             const response = await fetch(url, { headers, signal });
@@ -115,7 +112,7 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
 /**
  * Fetch POI data for a single H3 cell.
  * Checks local cache first, then fetches from API if needed.
- * 
+ *
  * @param h3Cell - The H3 cell identifier
  * @param signal - Optional AbortSignal for cancellation
  * @returns FetchResult containing the cell type and whether it was a cache hit
