@@ -76,12 +76,15 @@ const visibleFog = ref<string[]>([]);
 const fogOpacity = ref(0.85);
 const fogColor = ref('#1a1a1a');
 
+const isMounted = ref(true);
+
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let abortController: AbortController | null = null;
 
 onMounted(async () => {
   await loadExploredTiles();
   setTimeout(() => {
+    if (!isMounted.value) return;
     initMap();
     setupEventListeners();
     updateVisibleCells();
@@ -101,6 +104,7 @@ const loadExploredTiles = async () => {
 };
 
 onUnmounted(() => {
+  isMounted.value = false;
   if (debounceTimer) {
     clearTimeout(debounceTimer);
   }
