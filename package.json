@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test:unit": "vitest",
     "test:coverage": "vitest --coverage --coverage.include src",
-    "lint": "eslint ."
+    "lint": "vue-tsc && eslint ."
   },
   "dependencies": {
     "@capacitor/android": "8.0.2",

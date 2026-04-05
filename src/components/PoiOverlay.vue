@@ -22,6 +22,7 @@ const props = defineProps<Props>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 const ctx = ref<CanvasRenderingContext2D | null>(null);
+const animationFrame = ref<number | null>(null);
 
 const peakImage = ref<HTMLImageElement | null>(null);
 const naturalImage = ref<HTMLImageElement | null>(null);
@@ -106,6 +107,11 @@ const loadImage = (src: string): HTMLImageElement => {
   return img;
 };
 
+const animate = () => {
+  draw();
+  animationFrame.value = requestAnimationFrame(animate);
+};
+
 watch(() => props.visibleCells, () => {
   draw();
 }, { deep: true });
@@ -128,10 +134,13 @@ onMounted(() => {
   
   window.addEventListener('resize', resizeCanvas);
   
-  draw();
+  animate();
 });
 
 onUnmounted(() => {
+  if (animationFrame.value) {
+    cancelAnimationFrame(animationFrame.value);
+  }
   window.removeEventListener('resize', resizeCanvas);
 });
 
