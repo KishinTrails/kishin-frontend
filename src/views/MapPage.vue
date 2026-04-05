@@ -50,7 +50,7 @@
  * All business logic lives in trailMap().
  */
 
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, shallowRef, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -65,7 +65,7 @@ const MAP_CENTER: [number, number] = [3.1009225078676246, 45.75259789465471];
 const MAP_ZOOM = 16;
 
 const mapContainer = ref<HTMLElement | null>(null);
-const map = ref<maplibregl.Map | undefined>(undefined);
+const map = shallowRef<maplibregl.Map | undefined>(undefined);
 
 const {
   visitedCells,
