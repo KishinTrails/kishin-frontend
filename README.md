@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="logo.png" alt="Kishin Logo" width="200"/>
+  <img src="public/logo.png" alt="Kishin Trails Logo" width="200"/>
 </p>
 
-# Kishin Frontend
+# Kishin Trails Frontend
 
 [![CI](https://github.com/KishinTrails/kishin-frontend/actions/workflows/ci.yml/badge.svg)](https://github.com/KishinTrails/kishin-frontend/actions/workflows/ci.yml)
 [![Vue 3](https://img.shields.io/badge/Vue-3.x-4FC08D?logo=vue.js)](https://vuejs.org/)
@@ -14,7 +14,7 @@
 
 **This project is currently under active and heavy development. It is NOT ready for general use and may contain bugs, incomplete features, or breaking changes. Use at your own risk.**
 
-Mobile-first Vue 3 application for exploring and tracking hiking trails with fog-of-war exploration mechanics. Part of the Kishin project.
+Mobile-first Vue 3 application for exploring and tracking hiking trails with fog-of-war exploration mechanics. Part of the Kishin Trails project.
 
 ## Features
 
@@ -179,7 +179,7 @@ Configure via `vite.config.ts` proxy settings or environment variables:
 
 ## 🧪 Quality and Testing
 
-Kishin uses **AI-assisted development** tools to accelerate coding, followed by **human validation** and **automated tests** for correctness.
+Kishin Trails uses **AI-assisted development** tools to accelerate coding, followed by **human validation** and **automated tests** for correctness.
 
 - Vitest for unit tests
 - Cypress for e2e tests
