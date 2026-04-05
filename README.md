@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="Kishin Logo" width="200"/>
+</p>
+
 # Kishin Frontend
 
 [![CI](https://github.com/KishinTrails/kishin-frontend/actions/workflows/ci.yml/badge.svg)](https://github.com/KishinTrails/kishin-frontend/actions/workflows/ci.yml)
@@ -5,6 +9,10 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![Ionic](https://img.shields.io/badge/Ionic-8.x-3880FF?logo=ionic)](https://ionicframework.com/)
 [![MapLibre](https://img.shields.io/badge/MapLibre-5.x-3F769E?logo=maplibre)](https://maplibre.org/)
+
+## ⚠️ WARNING: Under Heavy Development ⚠️
+
+**This project is currently under active and heavy development. It is NOT ready for general use and may contain bugs, incomplete features, or breaking changes. Use at your own risk.**
 
 Mobile-first Vue 3 application for exploring and tracking hiking trails with fog-of-war exploration mechanics. Part of the Kishin project.
 
@@ -169,10 +177,26 @@ Configure via `vite.config.ts` proxy settings or environment variables:
 - API base URL: Configured in service modules (proxied to `http://localhost:8000` in dev)
 - Base URL: Set via `BASE_URL` environment variable
 
-## Related Projects
+## 🧪 Quality and Testing
+
+Kishin uses **AI-assisted development** tools to accelerate coding, followed by **human validation** and **automated tests** for correctness.
+
+- Vitest for unit tests
+- Cypress for e2e tests
+- ESLint + TypeScript for code quality
+
+---
+
+## 📂 Related Projects
 
 - [kishin-api](https://github.com/KishinTrails/kishin-api) - Backend API service
 - [kishin-frontend](https://github.com/KishinTrails/kishin-frontend) - This repository
+
+---
+
+## 📜 License
+
+This project is released under the [MIT License](LICENSE).
 
 ---
 
