@@ -7,22 +7,20 @@
           class="map"
         />
         <FogOverlay
-          ref="fogOverlay"
           :map="map"
           :explored-cells="visibleExplored"
-          :opacity="fogOpacity"
-          color="#1a1a1a"
+          :opacity="FOG_OPACITY"
+          :color="FOG_COLOR"
         />
         <PoiOverlay
-          ref="poiOverlay"
           :map="map"
           :cell-types="cellTypes"
           :visible-cells="visibleExplored"
         />
-        
+
         <div class="controls">
           <h3>🗺️ Trail Map</h3>
-          
+
           <div class="stats">
             <div class="stat-item">
               Explored: {{ visitedCells.size }}
@@ -43,80 +41,59 @@
 <script setup lang="ts">
 /**
  * MapPage - Main trail map view with fog-of-war and POI markers.
- * Shows explored cells with markers, unexplored cells with fog overlay.
+ *
+ * Responsible only for:
+ * - Mounting the MapLibre map instance
+ * - Wiring map events → composable actions
+ * - Passing reactive state down to overlay components as props
+ *
+ * All business logic lives in trailMap().
  */
 
 import { ref, onMounted, onUnmounted } from 'vue';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
-import * as h3 from 'h3-js';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import FogOverlay from '@/components/FogOverlay.vue';
 import PoiOverlay from '@/components/PoiOverlay.vue';
-import { fetchCellTypes as fetchCellTypesFromService } from '@/services/poiService';
-import { getCellTypeFromCache } from '@/services/cacheService';
-import { fetchExploredTiles } from '@/services/trailsService';
+import { useTrailMap } from '@/composables/useTrailMap';
 
-type CellTypeKey = 'peak' | 'natural' | 'industrial';
+const FOG_OPACITY = 0.85;
+const FOG_COLOR = '#1a1a1a';
 
-const H3_RESOLUTION = 10;
+const MAP_CENTER: [number, number] = [3.1009225078676246, 45.75259789465471];
+const MAP_ZOOM = 16;
 
 const mapContainer = ref<HTMLElement | null>(null);
-const map = ref<maplibregl.Map>();
-const fogOverlay = ref<InstanceType<typeof FogOverlay> | null>(null);
-const poiOverlay = ref<InstanceType<typeof PoiOverlay> | null>(null);
+const map = ref<maplibregl.Map | undefined>(undefined);
 
-const cellTypes = ref<Map<string, CellTypeKey>>(new Map());
-const visitedCells = ref<Set<string>>(new Set());
+const {
+  visitedCells,
+  visibleExplored,
+  visibleFog,
+  cellTypes,
+  loadExploredTiles,
+  updateVisibleCells,
+  debouncedUpdate,
+  fetchCellTypes,
+} = useTrailMap();
 
-const visibleCells = ref<string[]>([]);
-const visibleExplored = ref<string[]>([]);
-const visibleFog = ref<string[]>([]);
-
-const fogOpacity = ref(0.85);
-const fogColor = ref('#1a1a1a');
-
-const isMounted = ref(true);
-
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let abortController: AbortController | null = null;
+let resizeListener: (() => void) | null = null;
 
 onMounted(async () => {
   await loadExploredTiles();
-  setTimeout(() => {
-    if (!isMounted.value) return;
-    initMap();
-    setupEventListeners();
-    updateVisibleCells();
-  }, 100);
+  initMap();
 });
 
-/**
- * Load the user's explored tiles from the API.
- */
-const loadExploredTiles = async () => {
-  try {
-    const explored = await fetchExploredTiles();
-    visitedCells.value = new Set(explored);
-  } catch (err) {
-    console.error('Failed to load explored tiles:', err);
-  }
-};
-
 onUnmounted(() => {
-  isMounted.value = false;
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
-  if (map.value) {
-    map.value.remove();
-  }
+  if (resizeListener) window.removeEventListener('resize', resizeListener);
+  map.value?.remove();
 });
 
 /**
  * Initialize the MapLibre map instance with OSM tiles.
  */
-const initMap = () => {
+const initMap = (): void => {
   if (!mapContainer.value) return;
 
   map.value = new maplibregl.Map({
@@ -128,8 +105,8 @@ const initMap = () => {
           type: 'raster',
           tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
           tileSize: 256,
-          attribution: '© OpenStreetMap contributors'
-        }
+          attribution: '© OpenStreetMap contributors',
+        },
       },
       layers: [
         {
@@ -139,134 +116,27 @@ const initMap = () => {
           minzoom: 0,
           maxzoom: 20
         }
-      ]
+      ],
     },
-    center: [3.1009225078676246, 45.75259789465471] as [number, number],
-    zoom: 16
+    center: MAP_CENTER,
+    zoom: MAP_ZOOM,
   });
 
   map.value.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-  map.value.on('move', () => {
-    debouncedUpdate();
-    draw();
+  // Sync visible cells immediately once the map is ready
+  map.value.on('load', () => {
+    updateVisibleCells(map.value!.getBounds());
+    fetchCellTypes();
   });
-  map.value.on('zoom', () => {
-    debouncedUpdate();
-    draw();
+
+  // Debounce updates during pan/zoom to limit API calls
+  map.value.on('moveend', () => {
+    debouncedUpdate(map.value!.getBounds());
   });
-};
 
-/**
- * Compute all H3 cells at the current resolution that fall within the map bounds.
- * 
- * @returns Array of H3 cell identifiers visible in the current map viewport.
- */
-const computeCellsFromBounds = (): string[] => {
-  if (!map.value) return [];
-
-  const bounds = map.value.getBounds();
-  const sw = bounds.getSouthWest();
-  const ne = bounds.getNorthEast();
-
-  const polygon: [number, number][] = [
-    [sw.lat, sw.lng],
-    [ne.lat, sw.lng],
-    [ne.lat, ne.lng],
-    [sw.lat, ne.lng],
-    [sw.lat, sw.lng],
-  ];
-
-  return h3.polygonToCells(polygon, H3_RESOLUTION);
-};
-
-/**
- * Update the lists of visible explored and fog cells based on map bounds.
- */
-const updateVisibleCells = () => {
-  if (!map.value) return;
-
-  const cells = computeCellsFromBounds();
-  visibleCells.value = cells;
-  
-  const explored: string[] = [];
-  const fog: string[] = [];
-
-  for (const cell of cells) {
-    if (visitedCells.value.has(cell)) {
-      explored.push(cell);
-    } else {
-      fog.push(cell);
-    }
-  }
-
-  visibleExplored.value = explored;
-  visibleFog.value = fog;
-  
-  fetchCellTypes();
-};
-
-/**
- * Debounced version of updateVisibleCells to reduce API calls during map interaction.
- */
-const debouncedUpdate = () => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
-  debounceTimer = setTimeout(() => {
-    updateVisibleCells();
-  }, 500);
-};
-
-/**
- * Set up window resize listener to handle map resizing.
- */
-const setupEventListeners = () => {
-  window.addEventListener('resize', () => {
-    if (map.value) {
-      map.value.resize();
-    }
-  });
-};
-
-/**
- * Fetch cell types for explored cells from the API.
- */
-const fetchCellTypes = async () => {
-  abortController?.abort();
-  abortController = new AbortController();
-
-  const cellsToFetch: string[] = [];
-
-  for (const cell of visibleExplored.value) {
-    if (cellTypes.value.has(cell)) continue;
-    
-    const cached = getCellTypeFromCache(cell);
-    if (cached !== null && cached !== 'none') {
-      cellTypes.value.set(cell, cached as CellTypeKey);
-    } else {
-      cellsToFetch.push(cell);
-    }
-  }
-
-  if (cellsToFetch.length > 0) {
-    const results = await fetchCellTypesFromService(cellsToFetch, abortController.signal);
-    for (const [cell, type] of results) {
-      if (type !== 'none') {
-        cellTypes.value.set(cell, type as CellTypeKey);
-      }
-    }
-    draw();
-  }
-};
-
-/**
- * Draw the fog layer and POI markers.
- * Calls FogOverlay.draw() for fog, then PoiOverlay.draw() for markers.
- */
-const draw = () => {
-  fogOverlay.value?.draw();
-  poiOverlay.value?.draw();
+  resizeListener = () => map.value?.resize();
+  window.addEventListener('resize', resizeListener);
 };
 </script>
 
@@ -283,8 +153,6 @@ const draw = () => {
   height: 100%;
 }
 
-
-
 .controls {
   position: absolute;
   top: 20px;
@@ -292,7 +160,7 @@ const draw = () => {
   background: white;
   padding: 15px;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
   z-index: 2;
   max-width: 300px;
 }
