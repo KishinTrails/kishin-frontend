@@ -2,9 +2,9 @@ name: Kishin Frontend CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
 
 # defaults:
 #   run:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: ['20.x']
+        node-version: ['25.x']
 
     steps:
       - uses: actions/checkout@v4
