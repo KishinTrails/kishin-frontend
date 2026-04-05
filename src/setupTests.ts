@@ -5,6 +5,9 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     if (contextType === '2d') {
       return new MockCanvasRenderingContext2D();
     }
+    if (contextType === 'webgl' || contextType === 'experimental-webgl') {
+      return null;
+    }
     return null;
   },
   writable: true,

@@ -1,9 +1,3 @@
-import { mount } from "@vue/test-utils";
-import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import MapPage from "./MapPage.vue";
-import FogOverlay from "@/components/FogOverlay.vue";
-import PoiOverlay from "@/components/PoiOverlay.vue";
-
 vi.mock("maplibregl", () => {
     return {
         default: vi.fn(() => ({
@@ -32,6 +26,12 @@ vi.mock("@ionic/vue", () => ({
         template: "<div><slot /></div>",
     },
 }));
+
+import { mount } from "@vue/test-utils";
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
+import MapPage from "./MapPage.vue";
+import FogOverlay from "@/components/FogOverlay.vue";
+import PoiOverlay from "@/components/PoiOverlay.vue";
 
 vi.mock("@/services/trailsService", () => ({
     fetchExploredTiles: vi.fn().mockResolvedValue(["cell1", "cell2", "cell3"]),
