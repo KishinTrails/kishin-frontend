@@ -21,6 +21,7 @@ export function useTrailMap() {
     const visibleExplored = ref<string[]>([]);
     const visibleFog = ref<string[]>([]);
     const cellTypes = ref<Map<string, CellTypeKey>>(new Map());
+    const filterByExplored = ref(true);
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let abortController: AbortController | null = null;
@@ -71,10 +72,14 @@ export function useTrailMap() {
         const fog: string[] = [];
 
         for (const cell of cells) {
-            if (visitedCells.value.has(cell)) {
-                explored.push(cell);
+            if (filterByExplored.value) {
+                if (visitedCells.value.has(cell)) {
+                    explored.push(cell);
+                } else {
+                    fog.push(cell);
+                }
             } else {
-                fog.push(cell);
+                explored.push(cell);
             }
         }
 
@@ -133,6 +138,7 @@ export function useTrailMap() {
         visibleExplored,
         visibleFog,
         cellTypes,
+        filterByExplored,
 
         // Actions
         loadExploredTiles,

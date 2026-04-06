@@ -8,7 +8,6 @@
 import { createRouter, createWebHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 import MapPage from "../views/MapPage.vue";
-import ClearmapPage from "../views/ClearmapPage.vue";
 import LoginPage from "../views/LoginPage.vue";
 import { isAuthenticated, logout } from "@/services/authService";
 
@@ -39,12 +38,6 @@ const routes: Array<RouteRecordRaw> = [
         path: "/map",
         name: "Map",
         component: MapPage,
-        meta: { requiresAuth: true },
-    },
-    {
-        path: "/debug/map",
-        name: "DebugMap",
-        component: ClearmapPage,
         meta: { requiresAuth: true },
     },
 ];
