@@ -9,9 +9,7 @@
         <PerlinNoiseOverlay
           v-if="showPerlin"
           :map="map"
-          :opacity="PERLIN_OPACITY"
           :scale="PERLIN_SCALE"
-          :filter-tiles="PERLIN_FILTER_TILES"
           :threshold="PERLIN_THRESHOLD"
           @active-cells-change="PERLIN_ACTIVE_CELLS = $event"
         />
@@ -28,79 +26,110 @@
           :cell-types="cellTypes"
           :visible-cells="visibleExplored"
         />
+        <TileSelectOverlay
+          v-if="showTileSelect"
+          :map="map"
+          :selected-cells="selectedCells"
+          @selected-cells-change="selectedCells = $event"
+        />
 
         <div class="controls">
           <h3>🗺️ Trail Map</h3>
 
           <div class="toggles">
             <label class="toggle-item">
-              <input type="checkbox" v-model="showPerlin" />
+              <input
+                v-model="showPerlin"
+                type="checkbox"
+              >
               <span>Perlin Noise</span>
             </label>
             <label class="toggle-item">
-              <input type="checkbox" v-model="showFog" />
+              <input
+                v-model="showFog"
+                type="checkbox"
+              >
               <span>Fog Overlay</span>
             </label>
             <label class="toggle-item">
-              <input type="checkbox" v-model="showPoi" />
+              <input
+                v-model="showPoi"
+                type="checkbox"
+              >
               <span>POI Overlay</span>
             </label>
             <label class="toggle-item">
-              <input type="checkbox" v-model="filterByExplored" />
+              <input
+                v-model="filterByExplored"
+                type="checkbox"
+              >
               <span>Explore Mode</span>
+            </label>
+            <label class="toggle-item">
+              <input
+                v-model="showTileSelect"
+                type="checkbox"
+              >
+              <span>Tile Selection</span>
             </label>
           </div>
 
-          <div v-if="showPerlin" class="perlin-controls">
+          <div
+            v-if="showPerlin"
+            class="perlin-controls"
+          >
             <h4>Perlin Noise Settings</h4>
-            
-            <div class="slider-group">
+
+            <div class="input-group">
               <label>
-                <span>Opacity: {{ Math.round(PERLIN_OPACITY * 100) }}%</span>
-                <input 
-                  type="range" 
-                  v-model.number="PERLIN_OPACITY" 
-                  min="0" 
-                  max="1" 
-                  step="0.01" 
-                />
+                <span>Scale</span>
+                <input
+                  v-model.number="PERLIN_SCALE"
+                  type="number"
+                  min="100"
+                  max="300"
+                  step="10"
+                >
               </label>
             </div>
 
-            <div class="slider-group">
+            <div class="input-group">
               <label>
-                <span>Scale: {{ PERLIN_SCALE }}</span>
-                <input 
-                  type="range" 
-                  v-model.number="PERLIN_SCALE" 
-                  min="1" 
-                  max="200" 
-                  step="10" 
-                />
-              </label>
-            </div>
-
-            <div class="slider-group">
-              <label class="toggle-item">
-                <input type="checkbox" v-model="PERLIN_FILTER_TILES" />
-                <span>Filter tiles</span>
-              </label>
-            </div>
-
-            <div v-if="PERLIN_FILTER_TILES" class="slider-group">
-              <label>
-                <span>Threshold: {{ PERLIN_THRESHOLD.toFixed(2) }}</span>
-                <input 
-                  type="range" 
-                  v-model.number="PERLIN_THRESHOLD" 
-                  min="0" 
-                  max="1" 
-                  step="0.01" 
-                />
+                <span>Threshold</span>
+                <input
+                  v-model.number="PERLIN_THRESHOLD"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                >
               </label>
               <div class="stat-item">
                 Active cells: {{ PERLIN_ACTIVE_CELLS }}
               </div>
+            </div>
+          </div>
+
+          <div
+            v-if="showTileSelect"
+            class="tile-select-controls"
+          >
+            <div class="stat-item">
+              Selected: {{ selectedCells.length }} cells
+            </div>
+            <div class="button-group">
+              <button
+                class="btn-clear"
+                @click="selectedCells = []"
+              >
+                Clear Selection
+              </button>
+              <button
+                class="btn-validate"
+                @click="validateSelection"
+              >
+                Validate Selection
+              </button>
             </div>
           </div>
 
@@ -140,14 +169,13 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import FogOverlay from '@/components/FogOverlay.vue';
 import PoiOverlay from '@/components/PoiOverlay.vue';
 import PerlinNoiseOverlay from '@/components/PerlinNoiseOverlay.vue';
+import TileSelectOverlay from '@/components/TileSelectOverlay.vue';
 import { useTrailMap } from '@/composables/useTrailMap';
 
 const FOG_OPACITY = 0.85;
 const FOG_COLOR = '#1a1a1a';
 
-const PERLIN_OPACITY = ref(1.0);
-const PERLIN_SCALE = ref(150);
-const PERLIN_FILTER_TILES = ref(false);
+const PERLIN_SCALE = ref(200);
 const PERLIN_THRESHOLD = ref(0.75);
 const PERLIN_ACTIVE_CELLS = ref(0);
 
@@ -160,6 +188,8 @@ const map = shallowRef<maplibregl.Map | undefined>(undefined);
 const showFog = ref(true);
 const showPoi = ref(true);
 const showPerlin = ref(false);
+const showTileSelect = ref(false);
+const selectedCells = ref<string[]>([]);
 
 const {
   visitedCells,
@@ -233,6 +263,10 @@ const initMap = (): void => {
   resizeListener = () => map.value?.resize();
   window.addEventListener('resize', resizeListener);
 };
+
+const validateSelection = () => {
+  console.log('Selected H3 IDs:', selectedCells.value);
+};
 </script>
 
 <style scoped>
@@ -298,11 +332,11 @@ const initMap = (): void => {
   color: #444;
 }
 
-.slider-group {
+.input-group {
   margin-bottom: 12px;
 }
 
-.slider-group label {
+.input-group label {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -310,14 +344,57 @@ const initMap = (): void => {
   color: #666;
 }
 
-.slider-group input[type="range"] {
+.input-group input[type="number"] {
   width: 100%;
-  cursor: pointer;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
 }
 
-.slider-group .toggle-item {
+.input-group .toggle-item {
   margin: 0;
   padding: 0;
+}
+
+.tile-select-controls {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.button-group button {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-clear {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-clear:hover {
+  background-color: #c0392b;
+}
+
+.btn-validate {
+  background-color: #27ae60;
+  color: white;
+}
+
+.btn-validate:hover {
+  background-color: #219a52;
 }
 
 .stats {
