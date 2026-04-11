@@ -20,12 +20,16 @@ interface Props {
   map?: MaplibreMap;
   scale?: number;
   threshold?: number;
+  octaves?: number;
+  amplitudeDecay?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   map: undefined,
-  scale: 10,
-  threshold: 0.5
+  scale: 50,
+  threshold: 0.5,
+  octaves: 3,
+  amplitudeDecay: 0.5
 });
 
 // Tell the parent component how many active cells we have
@@ -63,7 +67,7 @@ const updateActiveCells = async () => {
   const cells = h3.polygonToCells(polygon, 10);
   
   // Fetch noise values from API
-  const noiseMap = await fetchNoiseForCells(cells, props.scale);
+  const noiseMap = await fetchNoiseForCells(cells, props.scale, props.octaves, props.amplitudeDecay);
   
   // Find which cells are active (noise > threshold)
   const newActiveCells = new Set<string>();
@@ -152,7 +156,7 @@ watch(() => props.map, (m, old) => {
   }
 }, { immediate: true });
 
-watch(() => [props.scale, props.threshold], () => {
+watch(() => [props.scale, props.threshold, props.octaves, props.amplitudeDecay], () => {
   draw();
 });
 

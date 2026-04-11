@@ -14,12 +14,12 @@ interface NoiseResponse {
 }
 
 const API_BASE = "/noise";
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 500;
 
 const noiseCache = new Map<string, number>();
 
-function getCacheKey(cell: string, scale: number): string {
-    return `${cell}:${scale}`;
+function getCacheKey(cell: string, scale: number, octaves: number, amplitudeDecay: number): string {
+    return `${cell}:${scale}:${octaves}:${amplitudeDecay}`;
 }
 
 /**
@@ -28,12 +28,16 @@ function getCacheKey(cell: string, scale: number): string {
  *
  * @param cells - Array of H3 cell identifiers
  * @param scale - Noise scale parameter
+ * @param octaves - Number of noise octaves
+ * @param amplitudeDecay - Amplitude decay per octave
  * @param signal - Optional AbortSignal for cancellation
  * @returns Map of H3 cell IDs to their noise values
  */
 export async function fetchNoiseForCells(
     cells: string[],
     scale: number,
+    octaves: number = 3,
+    amplitudeDecay: number = 0.5,
     signal?: AbortSignal,
 ): Promise<Map<string, number>> {
     if (cells.length === 0) {
@@ -52,7 +56,7 @@ export async function fetchNoiseForCells(
     const uncachedCells: string[] = [];
 
     for (const cell of cells) {
-        const cacheKey = getCacheKey(cell, scale);
+        const cacheKey = getCacheKey(cell, scale, octaves, amplitudeDecay);
         const cached = noiseCache.get(cacheKey);
         if (cached !== undefined) {
             resultMap.set(cell, cached);
@@ -67,7 +71,7 @@ export async function fetchNoiseForCells(
 
     for (let i = 0; i < uncachedCells.length; i += BATCH_SIZE) {
         const batch = uncachedCells.slice(i, i + BATCH_SIZE);
-        const body = JSON.stringify({ cells: batch, scale });
+        const body = JSON.stringify({ cells: batch, scale, octaves, amplitudeDecay });
 
         try {
             const response = await fetch(`${API_BASE}/cells`, {
@@ -85,7 +89,7 @@ export async function fetchNoiseForCells(
             const data: NoiseResponse[] = await response.json();
             for (const item of data) {
                 resultMap.set(item.cell, item.noise);
-                noiseCache.set(getCacheKey(item.cell, scale), item.noise);
+                noiseCache.set(getCacheKey(item.cell, scale, octaves, amplitudeDecay), item.noise);
             }
         } catch (err) {
             console.warn(`[noiseService] Batch error:`, err);

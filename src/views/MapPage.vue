@@ -11,6 +11,8 @@
           :map="map"
           :scale="PERLIN_SCALE"
           :threshold="PERLIN_THRESHOLD"
+          :octaves="PERLIN_OCTAVES"
+          :amplitude-decay="PERLIN_AMPLITUDE_DECAY"
           @active-cells-change="PERLIN_ACTIVE_CELLS = $event"
         />
         <FogOverlay
@@ -88,7 +90,33 @@
                   type="number"
                   min="100"
                   max="300"
-                  step="10"
+                  step="1"
+                >
+              </label>
+            </div>
+
+            <div class="input-group">
+              <label>
+                <span>Octaves</span>
+                <input
+                  v-model.number="PERLIN_OCTAVES"
+                  type="number"
+                  min="1"
+                  max="10"
+                  step="1"
+                >
+              </label>
+            </div>
+
+            <div class="input-group">
+              <label>
+                <span>Amplitude Decay</span>
+                <input
+                  v-model.number="PERLIN_AMPLITUDE_DECAY"
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.05"
                 >
               </label>
             </div>
@@ -177,6 +205,8 @@ const FOG_COLOR = '#1a1a1a';
 
 const PERLIN_SCALE = ref(200);
 const PERLIN_THRESHOLD = ref(0.75);
+const PERLIN_OCTAVES = ref(3);
+const PERLIN_AMPLITUDE_DECAY = ref(0.5);
 const PERLIN_ACTIVE_CELLS = ref(0);
 
 const MAP_CENTER: [number, number] = [3.1009225078676246, 45.75259789465471];
@@ -265,7 +295,7 @@ const initMap = (): void => {
 };
 
 const validateSelection = () => {
-  console.log('Selected H3 IDs:', selectedCells.value);
+  console.log(JSON.stringify({ cells: selectedCells.value }, null, 2));
 };
 </script>
 
