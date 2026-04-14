@@ -42,7 +42,7 @@ interface FetchResult {
     cacheHit: boolean;
 }
 
-const API_BASE = "/poi";
+const API_BASE = `${import.meta.env.VITE_API_BASE}/poi`;
 const BATCH_SIZE = 100;
 
 /**
