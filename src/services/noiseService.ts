@@ -13,7 +13,7 @@ interface NoiseResponse {
     noise: number;
 }
 
-const API_BASE = "/noise";
+const API_BASE = `${import.meta.env.VITE_API_BASE}/noise`;
 const BATCH_SIZE = 500;
 
 const noiseCache = new Map<string, number>();

@@ -12,6 +12,11 @@ const config: CapacitorConfig = {
     android: {
         allowMixedContent: true,
     },
+    plugins: {
+        CapacitorHttp: {
+            enabled: true, // patches fetch() to use native HTTP
+        },
+    },
 };
 
 export default config;
