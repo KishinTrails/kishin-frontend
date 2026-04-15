@@ -1,9 +1,13 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { login, logout, getToken, isAuthenticated } from './authService';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { login, logout, getToken, isAuthenticated } from "./authService";
 
-describe('authService', () => {
+describe("authService", () => {
     let mockFetch: ReturnType<typeof vi.fn>;
-    let mockLocalStorage: { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn>; removeItem: ReturnType<typeof vi.fn> };
+    let mockLocalStorage: {
+        getItem: ReturnType<typeof vi.fn>;
+        setItem: ReturnType<typeof vi.fn>;
+        removeItem: ReturnType<typeof vi.fn>;
+    };
 
     beforeEach(() => {
         // Setup mock localStorage
@@ -12,107 +16,110 @@ describe('authService', () => {
             setItem: vi.fn(),
             removeItem: vi.fn(),
         };
-        vi.stubGlobal('localStorage', mockLocalStorage);
+        vi.stubGlobal("localStorage", mockLocalStorage);
 
         // Setup mock fetch
         mockFetch = vi.fn();
-        vi.stubGlobal('fetch', mockFetch);
+        vi.stubGlobal("fetch", mockFetch);
     });
 
-    describe('login', () => {
-        it('should store token in localStorage on successful login', async () => {
+    describe("login", () => {
+        it("should store token in localStorage on successful login", async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 status: 200,
-                json: async () => ({ access_token: 'mock-token-123', token_type: 'bearer' }),
+                json: async () => ({ access_token: "mock-token-123", token_type: "bearer" }),
             });
 
-            await login('testuser', 'password123');
+            await login("testuser", "password123");
 
-            expect(mockLocalStorage.setItem).toHaveBeenCalledWith('kishin_token', 'mock-token-123');
+            expect(mockLocalStorage.setItem).toHaveBeenCalledWith("kishin_token", "mock-token-123");
         });
 
-        it('should throw error on failed login (401)', async () => {
+        it("should throw error on failed login (401)", async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: false,
                 status: 401,
-                json: async () => ({ detail: 'Invalid credentials' }),
+                json: async () => ({ detail: "Invalid credentials" }),
             });
 
-            await expect(login('testuser', 'wrongpassword')).rejects.toThrow('Invalid credentials');
+            await expect(login("testuser", "wrongpassword")).rejects.toThrow("Invalid credentials");
         });
 
         it('should throw "Login failed" when error.detail is falsy', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: false,
                 status: 400,
-                json: async () => ({ detail: '' }),
+                json: async () => ({ detail: "" }),
             });
 
-            await expect(login('testuser', 'password')).rejects.toThrow('Login failed');
+            await expect(login("testuser", "password")).rejects.toThrow("Login failed");
         });
 
-        it('should propagate network errors as-is', async () => {
-            mockFetch.mockRejectedValueOnce(new Error('Network error'));
+        it("should propagate network errors as-is", async () => {
+            mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-            await expect(login('testuser', 'password')).rejects.toThrow('Network error');
+            await expect(login("testuser", "password")).rejects.toThrow("Network error");
         });
 
         it('should fallback to "Login failed" on invalid JSON response', async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: false,
                 status: 400,
-                json: async () => { throw new Error('Invalid JSON'); },
+                json: async () => {
+                    throw new Error("Invalid JSON");
+                },
             });
 
-            await expect(login('testuser', 'password')).rejects.toThrow('Login failed');
+            await expect(login("testuser", "password")).rejects.toThrow("Login failed");
         });
 
-        it('should send correct request body', async () => {
+        it("should send correct request body", async () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 status: 200,
-                json: async () => ({ access_token: 'token', token_type: 'bearer' }),
+                json: async () => ({ access_token: "token", token_type: "bearer" }),
             });
 
-            await login('myuser', 'mypassword');
+            await login("myuser", "mypassword");
 
-            expect(mockFetch).toHaveBeenCalledWith(
-                '/auth/login',
+            const [url, options] = mockFetch.mock.calls[0];
+            expect(url).toContain("/auth/login");
+            expect(options).toEqual(
                 expect.objectContaining({
-                    method: 'POST',
+                    method: "POST",
                     headers: expect.objectContaining({
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        "Content-Type": "application/x-www-form-urlencoded",
                     }),
-                })
+                }),
             );
         });
     });
 
-    describe('logout', () => {
-        it('should remove token from localStorage', () => {
+    describe("logout", () => {
+        it("should remove token from localStorage", () => {
             logout();
 
-            expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('kishin_token');
+            expect(mockLocalStorage.removeItem).toHaveBeenCalledWith("kishin_token");
         });
 
-        it('should call removeItem with correct key', () => {
+        it("should call removeItem with correct key", () => {
             logout();
 
-            expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('kishin_token');
+            expect(mockLocalStorage.removeItem).toHaveBeenCalledWith("kishin_token");
         });
     });
 
-    describe('getToken', () => {
-        it('should return token string when token exists', () => {
-            mockLocalStorage.getItem.mockReturnValue('existing-token');
+    describe("getToken", () => {
+        it("should return token string when token exists", () => {
+            mockLocalStorage.getItem.mockReturnValue("existing-token");
 
             const result = getToken();
 
-            expect(result).toBe('existing-token');
+            expect(result).toBe("existing-token");
         });
 
-        it('should return null when no token exists', () => {
+        it("should return null when no token exists", () => {
             mockLocalStorage.getItem.mockReturnValue(null);
 
             const result = getToken();
@@ -120,23 +127,23 @@ describe('authService', () => {
             expect(result).toBeNull();
         });
 
-        it('should call localStorage.getItem with correct key', () => {
+        it("should call localStorage.getItem with correct key", () => {
             getToken();
 
-            expect(mockLocalStorage.getItem).toHaveBeenCalledWith('kishin_token');
+            expect(mockLocalStorage.getItem).toHaveBeenCalledWith("kishin_token");
         });
     });
 
-    describe('isAuthenticated', () => {
-        it('should return true when token exists', () => {
-            mockLocalStorage.getItem.mockReturnValue('some-token');
+    describe("isAuthenticated", () => {
+        it("should return true when token exists", () => {
+            mockLocalStorage.getItem.mockReturnValue("some-token");
 
             const result = isAuthenticated();
 
             expect(result).toBe(true);
         });
 
-        it('should return false when no token exists', () => {
+        it("should return false when no token exists", () => {
             mockLocalStorage.getItem.mockReturnValue(null);
 
             const result = isAuthenticated();
@@ -144,8 +151,8 @@ describe('authService', () => {
             expect(result).toBe(false);
         });
 
-        it('should return false when token is empty string', () => {
-            mockLocalStorage.getItem.mockReturnValue('');
+        it("should return false when token is empty string", () => {
+            mockLocalStorage.getItem.mockReturnValue("");
 
             const result = isAuthenticated();
 
@@ -153,3 +160,4 @@ describe('authService', () => {
         });
     });
 });
+
