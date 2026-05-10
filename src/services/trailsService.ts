@@ -15,6 +15,27 @@ interface ExploredTilesResponse {
 const API_BASE = `${import.meta.env.VITE_API_BASE}/trails`;
 
 /**
+ * Log a single H3 cell as explored for the authenticated user.
+ *
+ * @param cell - H3 cell identifier (e.g. '851f9633fffffff')
+ */
+export async function logExploredCell(cell: string): Promise<void> {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE}/explored?cell=${encodeURIComponent(cell)}`, {
+        method: "POST",
+        headers,
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to log explored cell: ${response.status}`);
+    }
+}
+
+/**
  * Fetch the list of H3 cells that the current user has explored.
  *
  * @returns Array of H3 cell identifiers that the user has explored

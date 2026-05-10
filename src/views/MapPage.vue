@@ -34,6 +34,7 @@
           :selected-cells="selectedCells"
           @selected-cells-change="selectedCells = $event"
         />
+        <GpsTracker style="position: absolute; bottom: 20px; right: 20px; z-index: 2;" />
 
         <div class="controls">
           <h3>🗺️ Trail Map</h3>
@@ -172,6 +173,13 @@
               Visible Fog: {{ visibleFog.length }}
             </div>
           </div>
+
+          <button
+            class="btn-logout"
+            @click="handleLogout"
+          >
+            Logout
+          </button>
         </div>
       </div>
     </ion-content>
@@ -191,6 +199,7 @@
  */
 
 import { ref, shallowRef, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -199,6 +208,8 @@ import PoiOverlay from '@/components/PoiOverlay.vue';
 import PerlinNoiseOverlay from '@/components/PerlinNoiseOverlay.vue';
 import TileSelectOverlay from '@/components/TileSelectOverlay.vue';
 import { useTrailMap } from '@/composables/useTrailMap';
+import { logout } from '@/services/authService';
+import GpsTracker from '@/components/GpsTracker.vue';
 
 const FOG_OPACITY = 0.85;
 const FOG_COLOR = '#1a1a1a';
@@ -232,6 +243,13 @@ const {
   debouncedUpdate,
   fetchCellTypes,
 } = useTrailMap();
+
+const router = useRouter();
+
+const handleLogout = () => {
+  logout();
+  router.replace('/login');
+};
 
 let resizeListener: (() => void) | null = null;
 
@@ -425,6 +443,23 @@ const validateSelection = () => {
 
 .btn-validate:hover {
   background-color: #219a52;
+}
+
+.btn-logout {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  background-color: #95a5a6;
+  color: white;
+  margin-top: 15px;
+}
+
+.btn-logout:hover {
+  background-color: #7f8c8d;
 }
 
 .stats {
