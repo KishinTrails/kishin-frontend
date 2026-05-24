@@ -1,6 +1,6 @@
 /**
  * Trails service for fetching user exploration data from the API.
- * Manages explored H3 cells associated with the authenticated user.
+ * Manages explored S2 cells associated with the authenticated user.
  */
 
 import { getToken } from "./authService";
@@ -15,9 +15,9 @@ interface ExploredTilesResponse {
 const API_BASE = `${import.meta.env.VITE_API_BASE}/trails`;
 
 /**
- * Log a single H3 cell as explored for the authenticated user.
+ * Log a single S2 cell as explored for the authenticated user.
  *
- * @param cell - H3 cell identifier (e.g. '851f9633fffffff')
+ * @param cell - S2 cell token (e.g. '4f7e52163')
  */
 export async function logExploredCell(cell: string): Promise<void> {
     const token = getToken();
@@ -36,9 +36,9 @@ export async function logExploredCell(cell: string): Promise<void> {
 }
 
 /**
- * Fetch the list of H3 cells that the current user has explored.
+ * Fetch the list of S2 cells that the current user has explored.
  *
- * @returns Array of H3 cell identifiers that the user has explored
+ * @returns Array of S2 cell tokens that the user has explored
  * @throws Error if the API request fails
  */
 export async function fetchExploredTiles(): Promise<string[]> {

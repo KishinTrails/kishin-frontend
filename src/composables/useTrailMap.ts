@@ -1,5 +1,5 @@
 import { ref, onUnmounted } from "vue";
-import * as h3 from "h3-js";
+import { s2, r1, s1 } from "s2js";
 import { fetchCellTypes as fetchCellTypesFromService } from "@/services/poiService";
 import { getCellTypeFromCache } from "@/services/cacheService";
 import { fetchExploredTiles } from "@/services/trailsService";
@@ -12,8 +12,10 @@ export interface MapBounds {
     getNorthEast: () => { lat: number; lng: number };
 }
 
-const H3_RESOLUTION = 10;
+const S2_LEVEL = 16;
 const DEBOUNCE_DELAY = 500;
+
+const toRad = (deg: number) => (deg * Math.PI) / 180;
 
 export function useTrailMap() {
     const visitedCells = ref<Set<string>>(new Set());
@@ -44,21 +46,25 @@ export function useTrailMap() {
     };
 
     /**
-     * Compute all H3 cells visible within the given map bounds.
+     * Compute all S2 cells visible within the given map bounds.
      */
     const computeCellsFromBounds = (bounds: MapBounds): string[] => {
         const sw = bounds.getSouthWest();
         const ne = bounds.getNorthEast();
 
-        const polygon: [number, number][] = [
-            [sw.lat, sw.lng],
-            [ne.lat, sw.lng],
-            [ne.lat, ne.lng],
-            [sw.lat, ne.lng],
-            [sw.lat, sw.lng],
-        ];
+        const rect = new s2.Rect(
+            new r1.Interval(toRad(sw.lat), toRad(ne.lat)),
+            new s1.Interval(toRad(sw.lng), toRad(ne.lng)),
+        );
 
-        return h3.polygonToCells(polygon, H3_RESOLUTION);
+        const coverer = new s2.RegionCoverer({
+            minLevel: S2_LEVEL,
+            maxLevel: S2_LEVEL,
+            maxCells: 500,
+        });
+
+        const cellUnion = coverer.covering(rect);
+        return Array.from(cellUnion).map(s2.cellid.toToken);
     };
 
     /**

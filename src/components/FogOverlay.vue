@@ -7,7 +7,8 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import * as h3 from 'h3-js';
+import { s2 } from 's2js';
+import { s1 } from 's2js';
 import { hexToRgba } from '@/utils/color';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 
@@ -35,28 +36,40 @@ const resizeCanvas = () => {
   canvas.value.height = window.innerHeight;
 };
 
-const drawH3Cell = (c: CanvasRenderingContext2D, h3Index: string, fill: boolean = false) => {
-  if (!props.map || typeof props.map.project !== 'function') return;
-  
-  const boundary = h3.cellToBoundary(h3Index);
-  if (boundary.length === 0) return;
-  
+const drawS2Cell = (c: CanvasRenderingContext2D, token: string, fill: boolean = false) => {
+  if (!props.map || typeof props.map.project !== "function") return;
+
+  let cellId: s2.cellid.CellID;
+  let cell: s2.Cell;
+  try {
+    cellId = s2.cellid.fromToken(token);
+    cell = s2.Cell.fromCellID(cellId);
+  } catch (err) {
+    console.warn(`[FogOverlay] Invalid S2 cell token: ${token}`);
+    return;
+  }
+
   c.beginPath();
-  
-  boundary.forEach((coord: number[], i: number) => {
-    const point = props.map!.project([coord[1], coord[0]]);
-    
+
+  for (let i = 0; i < 4; i++) {
+    const vertex = cell.vertex(i);
+    const latLng = s2.LatLng.fromPoint(vertex);
+    const point = props.map!.project([
+      s1.angle.degrees(latLng.lng),
+      s1.angle.degrees(latLng.lat),
+    ]);
+
     if (i === 0) {
       c.moveTo(point.x, point.y);
     } else {
       c.lineTo(point.x, point.y);
     }
-  });
-  
+  }
+
   c.closePath();
-  
+
   if (fill) {
-    c.fillStyle = 'rgba(0, 0, 0, 1)';
+    c.fillStyle = "rgba(0, 0, 0, 1)";
     c.fill();
   }
 };
@@ -77,7 +90,7 @@ const draw = () => {
   c.globalCompositeOperation = 'destination-out';
   
   props.exploredCells.forEach(cell => {
-    drawH3Cell(c, cell, true);
+    drawS2Cell(c, cell, true);
   });
 
   c.restore();

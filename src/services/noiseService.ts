@@ -1,6 +1,6 @@
 /**
  * Noise service for fetching Perlin noise values from the API.
- * Handles batch requests for H3 cells.
+ * Handles batch requests for S2 cells.
  */
 
 import { getToken } from "./authService";
@@ -23,15 +23,15 @@ function getCacheKey(cell: string, scale: number, octaves: number, amplitudeDeca
 }
 
 /**
- * Fetch noise values for multiple H3 cells.
- * Returns a map of cell IDs to their noise values (0-1 range).
+ * Fetch noise values for multiple S2 cells.
+ * Returns a map of cell tokens to their noise values (0-1 range).
  *
- * @param cells - Array of H3 cell identifiers
+ * @param cells - Array of S2 cell tokens
  * @param scale - Noise scale parameter
  * @param octaves - Number of noise octaves
  * @param amplitudeDecay - Amplitude decay per octave
  * @param signal - Optional AbortSignal for cancellation
- * @returns Map of H3 cell IDs to their noise values
+ * @returns Map of S2 cell tokens to their noise values
  */
 export async function fetchNoiseForCells(
     cells: string[],
@@ -92,9 +92,16 @@ export async function fetchNoiseForCells(
                 noiseCache.set(getCacheKey(item.cell, scale, octaves, amplitudeDecay), item.noise);
             }
         } catch (err) {
+            if (err instanceof DOMException && err.name === "AbortError") {
+                throw err;
+            }
             console.warn(`[noiseService] Batch error:`, err);
         }
     }
 
     return resultMap;
+}
+
+export function clearNoiseCache(): void {
+    noiseCache.clear();
 }
