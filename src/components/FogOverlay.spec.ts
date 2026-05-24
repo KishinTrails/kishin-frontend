@@ -3,17 +3,36 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import FogOverlay from "@/components/FogOverlay.vue";
 import { MockHTMLCanvasElement, MockCanvasRenderingContext2D } from "@/__mocks__/canvas";
 
-vi.mock("h3-js", () => ({
-    cellToBoundary: vi.fn((cellId: string) => {
-        if (cellId === "invalid") return [];
-        return [
-            [45.75, 3.1],
-            [45.76, 3.1],
-            [45.76, 3.11],
-            [45.75, 3.11],
-        ];
-    }),
-}));
+vi.mock("s2js", () => {
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const vertices = [
+        { lat: toRad(45.75), lng: toRad(3.1) },
+        { lat: toRad(45.76), lng: toRad(3.1) },
+        { lat: toRad(45.76), lng: toRad(3.11) },
+        { lat: toRad(45.75), lng: toRad(3.11) },
+    ];
+
+    return {
+        s2: {
+            cellid: {
+                fromToken: vi.fn((token: string) => token),
+            },
+            Cell: {
+                fromCellID: vi.fn().mockImplementation(() => ({
+                    vertex: (i: number) => vertices[i],
+                })),
+            },
+            LatLng: {
+                fromPoint: vi.fn((point: any) => point),
+            },
+        },
+        s1: {
+            angle: {
+                degrees: vi.fn((rad: number) => (rad * 180) / Math.PI),
+            },
+        },
+    };
+});
 
 vi.mock("@/utils/color", () => ({
     hexToRgba: vi.fn((hex: string, alpha: number) => `rgba(${hex}, ${alpha})`),
@@ -36,21 +55,17 @@ describe("FogOverlay", () => {
         mockCanvas = new MockHTMLCanvasElement();
         mockContext = mockCanvas.getMockContext()!;
 
-        (HTMLCanvasElement.prototype.getContext as any) = function (
-            contextType: string
-        ): any {
+        (HTMLCanvasElement.prototype.getContext as any) = function (contextType: string): any {
             if (contextType === "2d") {
                 return mockContext;
             }
             return null;
         };
 
-        vi.spyOn(window, "requestAnimationFrame").mockImplementation(
-            (callback: FrameRequestCallback) => {
-                setTimeout(() => callback(0), 16);
-                return 0;
-            }
-        );
+        vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback: FrameRequestCallback) => {
+            setTimeout(() => callback(0), 16);
+            return 0;
+        });
 
         vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
 
@@ -211,16 +226,14 @@ describe("FogOverlay", () => {
             let capturedFrameId: number = 0;
             let frameCounter = 1;
 
-            vi.spyOn(window, "requestAnimationFrame").mockImplementation(
-                (callback: FrameRequestCallback) => {
-                    const id = frameCounter++;
-                    setTimeout(() => callback(0), 16);
-                    if (!capturedFrameId) {
-                        capturedFrameId = id;
-                    }
-                    return id;
+            vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback: FrameRequestCallback) => {
+                const id = frameCounter++;
+                setTimeout(() => callback(0), 16);
+                if (!capturedFrameId) {
+                    capturedFrameId = id;
                 }
-            );
+                return id;
+            });
 
             wrapper = mount(FogOverlay, {
                 props: {
@@ -332,12 +345,12 @@ describe("FogOverlay", () => {
         });
     });
 
-    describe("H3 Cell Drawing", () => {
-        it("draws H3 cells from exploredCells prop", async () => {
+    describe("S2 Cell Drawing", () => {
+        it("draws S2 cells from exploredCells prop", async () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
-                    exploredCells: ["test-cell"],
+                    exploredCells: ["4789459f"],
                 },
             });
 
@@ -348,7 +361,7 @@ describe("FogOverlay", () => {
             expect(beginPathCalls.length).toBeGreaterThan(1);
         });
 
-        it("projects H3 cell coordinates using map", async () => {
+        it("projects S2 cell coordinates using map", async () => {
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
@@ -412,7 +425,13 @@ describe("FogOverlay", () => {
             expect(fillCalls.length).toBeGreaterThan(0);
         });
 
-        it("skips invalid cells with empty boundary", async () => {
+        it("skips invalid cells that throw on construction", async () => {
+            const { s2 } = await import("s2js");
+            vi.mocked(s2.Cell.fromCellID).mockImplementationOnce(() => {
+                throw new Error("invalid cell");
+            });
+            const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
             wrapper = mount(FogOverlay, {
                 props: {
                     map: mockMap,
@@ -423,16 +442,8 @@ describe("FogOverlay", () => {
             await wrapper.vm.$nextTick();
             await new Promise((resolve) => setTimeout(resolve, 50));
 
-            const allCalls = mockContext.getCallHistory();
-            const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            const fillCalls = mockContext.getCallsByMethod("fill");
-            const moveToCalls = mockContext.getCallsByMethod("moveTo");
-            const lineToCalls = mockContext.getCallsByMethod("lineTo");
-            
-            expect(beginPathCalls.length).toBe(0);
-            expect(fillCalls.length).toBe(0);
-            expect(moveToCalls.length).toBe(0);
-            expect(lineToCalls.length).toBe(0);
+            expect(consoleWarnSpy).toHaveBeenCalledWith("[FogOverlay] Invalid S2 cell token: invalid");
+            consoleWarnSpy.mockRestore();
         });
 
         it("draws multiple cells", async () => {
@@ -561,15 +572,13 @@ describe("FogOverlay", () => {
 
         it("continues animation loop with multiple frames", async () => {
             let frameCount = 0;
-            vi.spyOn(window, "requestAnimationFrame").mockImplementation(
-                (callback: FrameRequestCallback) => {
-                    frameCount++;
-                    if (frameCount <= 3) {
-                        setTimeout(() => callback(0), 16);
-                    }
-                    return frameCount;
+            vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback: FrameRequestCallback) => {
+                frameCount++;
+                if (frameCount <= 3) {
+                    setTimeout(() => callback(0), 16);
                 }
-            );
+                return frameCount;
+            });
 
             wrapper = mount(FogOverlay, {
                 props: {
