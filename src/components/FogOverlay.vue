@@ -6,15 +6,28 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Fog overlay component for rendering unexplored map areas.
+ * Uses S2 cell tokens to determine which regions are unexplored and displays
+ * them with a configurable fog effect.
+ */
+
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { tokenToCell, cellToVertices } from '@/utils/s2Utils';
 import { hexToRgba } from '@/utils/color';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 
+/**
+ * Props for the FogOverlay component.
+ */
 interface Props {
+  /** Maplibre map instance for coordinate projection */
   map?: MaplibreMap;
+  /** Array of S2 cell tokens representing explored areas (these areas will be clear) */
   exploredCells?: string[];
+  /** Opacity of the fog overlay (0-1) */
   opacity?: number;
+  /** Base color of the fog overlay as hex string */
   color?: string;
 }
 

@@ -3,37 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import FogOverlay from "@/components/FogOverlay.vue";
 import { MockHTMLCanvasElement, MockCanvasRenderingContext2D } from "@/__mocks__/canvas";
 
-// vi.mock("s2js", () => {
-//     const toRad = (deg: number) => (deg * Math.PI) / 180;
-//     const vertices = [
-//         { lat: toRad(45.75), lng: toRad(3.1) },
-//         { lat: toRad(45.76), lng: toRad(3.1) },
-//         { lat: toRad(45.76), lng: toRad(3.11) },
-//         { lat: toRad(45.75), lng: toRad(3.11) },
-//     ];
-//
-//     return {
-//         s2: {
-//             cellid: {
-//                 fromToken: vi.fn((token: string) => token),
-//             },
-//             Cell: {
-//                 fromCellID: vi.fn().mockImplementation(() => ({
-//                     vertex: (i: number) => vertices[i],
-//                 })),
-//             },
-//             LatLng: {
-//                 fromPoint: vi.fn((point: any) => point),
-//             },
-//         },
-//         s1: {
-//             angle: {
-//                 degrees: vi.fn((rad: number) => (rad * 180) / Math.PI),
-//             },
-//         },
-//     };
-// });
-
 vi.mock("@/utils/s2Utils", () => {
     const degreeVertices = [
         { lat: 45.75, lng: 3.1 },
