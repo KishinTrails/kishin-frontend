@@ -1,11 +1,23 @@
+/**
+ * Composable for managing trail map state, visibility, and data fetching.
+ * Handles explored cells tracking, POI type fetching, and viewport-based cell filtering.
+ */
+
 import { ref, onUnmounted } from "vue";
 import { cellsFromBounds, cellToToken } from "@/utils/s2Utils";
 import { fetchCellTypes as fetchCellTypesFromService } from "@/services/poiService";
 import { getCellTypeFromCache } from "@/services/cacheService";
 import { fetchExploredTiles } from "@/services/trailsService";
 
+/**
+ * Valid POI cell type categories displayed on the map.
+ */
 export type CellTypeKey = "peak" | "natural" | "industrial";
 
+/**
+ * Interface for map viewport bounds.
+ * Abstracts map library specifics from the composable.
+ */
 export interface MapBounds {
     getSouthWest: () => { lat: number; lng: number };
     getNorthEast: () => { lat: number; lng: number };
@@ -13,6 +25,13 @@ export interface MapBounds {
 
 const DEBOUNCE_DELAY = 500;
 
+/**
+ * Manages trail map state including explored cells, visible cells, and POI data.
+ * Provides debounced updates for map move/zoom events and integrates with
+ * the trails, poi, and cache services.
+ *
+ * @returns Reactive state and actions for trail map management
+ */
 export function useTrailMap() {
     const visitedCells = ref<Set<string>>(new Set());
     const visibleCells = ref<string[]>([]);

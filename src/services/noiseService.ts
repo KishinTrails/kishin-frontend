@@ -18,6 +18,15 @@ const BATCH_SIZE = 500;
 
 const noiseCache = new Map<string, number>();
 
+/**
+ * Generates a unique cache key for a cell with given noise parameters.
+ *
+ * @param cell - S2 cell token
+ * @param scale - Noise scale parameter
+ * @param octaves - Number of noise octaves
+ * @param amplitudeDecay - Amplitude decay per octave
+ * @returns Unique cache key string
+ */
 function getCacheKey(cell: string, scale: number, octaves: number, amplitudeDecay: number): string {
     return `${cell}:${scale}:${octaves}:${amplitudeDecay}`;
 }
@@ -102,6 +111,10 @@ export async function fetchNoiseForCells(
     return resultMap;
 }
 
+/**
+ * Clears the in-memory noise value cache.
+ * Does not affect localStorage (not used for noise caching).
+ */
 export function clearNoiseCache(): void {
     noiseCache.clear();
 }
