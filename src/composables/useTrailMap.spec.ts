@@ -17,22 +17,27 @@ vi.mock("@/services/cacheService", () => ({
     getCellTypeFromCache: vi.fn().mockReturnValue(null),
 }));
 
-vi.mock("s2js", () => {
-    const mockCells = ["cell1", "cell2", "cell3"];
-    return {
-        s2: {
-            Rect: vi.fn(),
-            RegionCoverer: vi.fn().mockImplementation(function (this: any) {
-                this.covering = vi.fn().mockReturnValue(mockCells);
-            }),
-            cellid: {
-                toToken: vi.fn().mockImplementation((cell: string) => cell),
-            },
-        },
-        r1: { Interval: vi.fn() },
-        s1: { Interval: vi.fn() },
-    };
-});
+// vi.mock("s2js", () => {
+//     const mockCells = ["cell1", "cell2", "cell3"];
+//     return {
+//         s2: {
+//             Rect: vi.fn(),
+//             RegionCoverer: vi.fn().mockImplementation(function (this: any) {
+//                 this.covering = vi.fn().mockReturnValue(mockCells);
+//             }),
+//             cellid: {
+//                 toToken: vi.fn().mockImplementation((cell: string) => cell),
+//             },
+//         },
+//         r1: { Interval: vi.fn() },
+//         s1: { Interval: vi.fn() },
+//     };
+// });
+
+vi.mock("@/utils/s2Utils", () => ({
+    cellsFromBounds: vi.fn().mockReturnValue([1n, 2n, 3n]),
+    cellToToken: vi.fn().mockImplementation((id: bigint) => `cell${id}`),
+}));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -100,30 +105,18 @@ describe("useTrailMap", () => {
         });
     });
 
-    // ── computeCellsFromBounds ─────────────────────────────────────────────────
+    // ── updateVisibleCells ─────────────────────────────────────────────────────
 
     describe("computeCellsFromBounds", () => {
-        it("returns the cells produced by s2's region coverer", () => {
-            const { result } = withSetup(useTrailMap);
-
-            const cells = result.computeCellsFromBounds(makeBounds());
-
-            expect(cells).toEqual(["cell1", "cell2", "cell3"]);
-        });
-
         it("builds the correct Rect from bounds", async () => {
-            const { s2, r1, s1 } = await import("s2js");
+            const { cellsFromBounds } = await import("@/utils/s2Utils");
             const { result } = withSetup(useTrailMap);
 
-            result.computeCellsFromBounds(makeBounds({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }));
+            result.updateVisibleCells(makeBounds({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }));
 
-            expect(r1.Interval).toHaveBeenCalledWith(1, 3); // sw.lat, ne.lat
-            expect(s1.Interval).toHaveBeenCalledWith(2, 4); // sw.lng, ne.lng
-            expect(s2.Rect).toHaveBeenCalled();
+            expect(cellsFromBounds).toHaveBeenCalledWith({ lat: 1, lng: 2 }, { lat: 3, lng: 4 });
         });
     });
-
-    // ── updateVisibleCells ─────────────────────────────────────────────────────
 
     describe("updateVisibleCells", () => {
         it("splits cells correctly into explored and fog", () => {

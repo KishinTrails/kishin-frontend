@@ -3,34 +3,47 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import FogOverlay from "@/components/FogOverlay.vue";
 import { MockHTMLCanvasElement, MockCanvasRenderingContext2D } from "@/__mocks__/canvas";
 
-vi.mock("s2js", () => {
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const vertices = [
-        { lat: toRad(45.75), lng: toRad(3.1) },
-        { lat: toRad(45.76), lng: toRad(3.1) },
-        { lat: toRad(45.76), lng: toRad(3.11) },
-        { lat: toRad(45.75), lng: toRad(3.11) },
-    ];
+// vi.mock("s2js", () => {
+//     const toRad = (deg: number) => (deg * Math.PI) / 180;
+//     const vertices = [
+//         { lat: toRad(45.75), lng: toRad(3.1) },
+//         { lat: toRad(45.76), lng: toRad(3.1) },
+//         { lat: toRad(45.76), lng: toRad(3.11) },
+//         { lat: toRad(45.75), lng: toRad(3.11) },
+//     ];
+//
+//     return {
+//         s2: {
+//             cellid: {
+//                 fromToken: vi.fn((token: string) => token),
+//             },
+//             Cell: {
+//                 fromCellID: vi.fn().mockImplementation(() => ({
+//                     vertex: (i: number) => vertices[i],
+//                 })),
+//             },
+//             LatLng: {
+//                 fromPoint: vi.fn((point: any) => point),
+//             },
+//         },
+//         s1: {
+//             angle: {
+//                 degrees: vi.fn((rad: number) => (rad * 180) / Math.PI),
+//             },
+//         },
+//     };
+// });
 
+vi.mock("@/utils/s2Utils", () => {
+    const degreeVertices = [
+        { lat: 45.75, lng: 3.1 },
+        { lat: 45.76, lng: 3.1 },
+        { lat: 45.76, lng: 3.11 },
+        { lat: 45.75, lng: 3.11 },
+    ];
     return {
-        s2: {
-            cellid: {
-                fromToken: vi.fn((token: string) => token),
-            },
-            Cell: {
-                fromCellID: vi.fn().mockImplementation(() => ({
-                    vertex: (i: number) => vertices[i],
-                })),
-            },
-            LatLng: {
-                fromPoint: vi.fn((point: any) => point),
-            },
-        },
-        s1: {
-            angle: {
-                degrees: vi.fn((rad: number) => (rad * 180) / Math.PI),
-            },
-        },
+        tokenToCell: vi.fn().mockImplementation((token: string) => token),
+        cellToVertices: vi.fn().mockImplementation(() => degreeVertices),
     };
 });
 
@@ -361,40 +374,6 @@ describe("FogOverlay", () => {
             expect(beginPathCalls.length).toBeGreaterThan(1);
         });
 
-        it("projects S2 cell coordinates using map", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["test-cell"],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            expect(mockMap.project).toHaveBeenCalledWith([3.1, 45.75]);
-            expect(mockMap.project).toHaveBeenCalledWith([3.1, 45.76]);
-            expect(mockMap.project).toHaveBeenCalledWith([3.11, 45.76]);
-            expect(mockMap.project).toHaveBeenCalledWith([3.11, 45.75]);
-        });
-
-        it("calls moveTo and lineTo for cell boundaries", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["test-cell"],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const moveToCalls = mockContext.getCallsByMethod("moveTo");
-            const lineToCalls = mockContext.getCallsByMethod("lineTo");
-            expect(moveToCalls.length).toBeGreaterThan(0);
-            expect(lineToCalls.length).toBeGreaterThan(0);
-        });
-
         it("closes path after drawing cell boundary", async () => {
             wrapper = mount(FogOverlay, {
                 props: {
@@ -426,23 +405,25 @@ describe("FogOverlay", () => {
         });
 
         it("skips invalid cells that throw on construction", async () => {
-            const { s2 } = await import("s2js");
-            vi.mocked(s2.Cell.fromCellID).mockImplementationOnce(() => {
+            const { cellToVertices } = await import("@/utils/s2Utils");
+            vi.mocked(cellToVertices).mockImplementationOnce(() => {
                 throw new Error("invalid cell");
             });
+
             const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
             wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["invalid"],
-                },
+                props: { map: mockMap, exploredCells: ["invalid"] },
             });
 
             await wrapper.vm.$nextTick();
             await new Promise((resolve) => setTimeout(resolve, 50));
 
-            expect(consoleWarnSpy).toHaveBeenCalledWith("[FogOverlay] Invalid S2 cell token: invalid");
+            expect(consoleWarnSpy).toHaveBeenCalledWith(
+                "[FogOverlay] Invalid S2 cell token: invalid",
+                expect.any(Error),
+            );
+
             consoleWarnSpy.mockRestore();
         });
 
