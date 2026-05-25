@@ -1,9 +1,8 @@
 import { ref, onUnmounted } from "vue";
-import { s2, r1, s1 } from "s2js";
+import { cellsFromBounds, cellToToken } from "@/utils/s2Utils";
 import { fetchCellTypes as fetchCellTypesFromService } from "@/services/poiService";
 import { getCellTypeFromCache } from "@/services/cacheService";
 import { fetchExploredTiles } from "@/services/trailsService";
-import type { Map as MaplibreMap } from "maplibre-gl";
 
 export type CellTypeKey = "peak" | "natural" | "industrial";
 
@@ -12,10 +11,7 @@ export interface MapBounds {
     getNorthEast: () => { lat: number; lng: number };
 }
 
-const S2_LEVEL = 16;
 const DEBOUNCE_DELAY = 500;
-
-const toRad = (deg: number) => (deg * Math.PI) / 180;
 
 export function useTrailMap() {
     const visitedCells = ref<Set<string>>(new Set());
@@ -46,32 +42,12 @@ export function useTrailMap() {
     };
 
     /**
-     * Compute all S2 cells visible within the given map bounds.
-     */
-    const computeCellsFromBounds = (bounds: MapBounds): string[] => {
-        const sw = bounds.getSouthWest();
-        const ne = bounds.getNorthEast();
-
-        const rect = new s2.Rect(
-            new r1.Interval(toRad(sw.lat), toRad(ne.lat)),
-            new s1.Interval(toRad(sw.lng), toRad(ne.lng)),
-        );
-
-        const coverer = new s2.RegionCoverer({
-            minLevel: S2_LEVEL,
-            maxLevel: S2_LEVEL,
-            maxCells: 500,
-        });
-
-        const cellUnion = coverer.covering(rect);
-        return Array.from(cellUnion).map(s2.cellid.toToken);
-    };
-
-    /**
      * Split visible cells into explored and fog lists based on visitedCells.
      */
     const updateVisibleCells = (bounds: MapBounds): void => {
-        const cells = computeCellsFromBounds(bounds);
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        const cells = cellsFromBounds(sw, ne).map(cellToToken);
         visibleCells.value = cells;
 
         const explored: string[] = [];
@@ -148,7 +124,6 @@ export function useTrailMap() {
 
         // Actions
         loadExploredTiles,
-        computeCellsFromBounds,
         updateVisibleCells,
         debouncedUpdate,
         fetchCellTypes,

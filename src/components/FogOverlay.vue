@@ -7,8 +7,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import { s2 } from 's2js';
-import { s1 } from 's2js';
+import { tokenToCell, cellToVertices } from '@/utils/s2Utils';
 import { hexToRgba } from '@/utils/color';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 
@@ -23,7 +22,7 @@ const props = withDefaults(defineProps<Props>(), {
   map: undefined,
   exploredCells: () => [],
   opacity: 0.85,
-  color: '#1a1a1a'
+  color: '#1a1a1a',
 });
 
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -37,28 +36,20 @@ const resizeCanvas = () => {
 };
 
 const drawS2Cell = (c: CanvasRenderingContext2D, token: string, fill: boolean = false) => {
-  if (!props.map || typeof props.map.project !== "function") return;
+  if (!props.map || typeof props.map.project !== 'function') return;
 
-  let cellId: s2.cellid.CellID;
-  let cell: s2.Cell;
+  let vertices: Array<{ lat: number; lng: number }>;
   try {
-    cellId = s2.cellid.fromToken(token);
-    cell = s2.Cell.fromCellID(cellId);
+    vertices = cellToVertices(tokenToCell(token));
   } catch (err) {
-    console.warn(`[FogOverlay] Invalid S2 cell token: ${token}`);
+    console.warn(`[FogOverlay] Invalid S2 cell token: ${token}`, err);
     return;
   }
 
   c.beginPath();
 
-  for (let i = 0; i < 4; i++) {
-    const vertex = cell.vertex(i);
-    const latLng = s2.LatLng.fromPoint(vertex);
-    const point = props.map!.project([
-      s1.angle.degrees(latLng.lng),
-      s1.angle.degrees(latLng.lat),
-    ]);
-
+  for (let i = 0; i < vertices.length; i++) {
+    const point = props.map!.project([vertices[i].lng, vertices[i].lat]);
     if (i === 0) {
       c.moveTo(point.x, point.y);
     } else {
@@ -69,7 +60,7 @@ const drawS2Cell = (c: CanvasRenderingContext2D, token: string, fill: boolean = 
   c.closePath();
 
   if (fill) {
-    c.fillStyle = "rgba(0, 0, 0, 1)";
+    c.fillStyle = 'rgba(0, 0, 0, 1)';
     c.fill();
   }
 };
@@ -88,8 +79,8 @@ const draw = () => {
   c.fillRect(0, 0, width, height);
 
   c.globalCompositeOperation = 'destination-out';
-  
-  props.exploredCells.forEach(cell => {
+
+  props.exploredCells.forEach((cell) => {
     drawS2Cell(c, cell, true);
   });
 
