@@ -1,3 +1,8 @@
+/**
+ * S2 geometry utilities for cell operations.
+ * Provides functions for converting between S2 cell IDs, tokens, and geographic coordinates.
+ */
+
 import { s2 } from "s2js";
 import { r1 } from "s2js";
 import { s1 } from "s2js";
@@ -44,6 +49,14 @@ export function tokenToCell(token: string): bigint {
     return s2.cellid.fromToken(token);
 }
 
+/**
+ * Returns the S2 cell ID containing the given geographic point at the specified level.
+ *
+ * @param lat - Latitude in degrees
+ * @param lng - Longitude in degrees
+ * @param level - S2 cell level (defaults to S2_LEVEL)
+ * @returns S2 cell ID as bigint
+ */
 export function cellFromLatLng(lat: number, lng: number, level: number = S2_LEVEL): bigint {
     const leafCell = s2.cellid.fromLatLng(s2.LatLng.fromDegrees(lat, lng));
     return s2.cellid.parent(leafCell, level);
