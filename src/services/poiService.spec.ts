@@ -70,7 +70,7 @@ describe("poiService", () => {
             mockFetch.mockResolvedValueOnce({
                 ok: true,
                 status: 200,
-                json: async () => ({ cells: [{ s2_cell: "cell2", type: "natural" }] }),
+                json: async () => ({ cells: [{ s2_cell_id: "cell2", type: "natural" }] }),
             });
 
             await fetchCellTypes(["cell1", "cell2"]);
@@ -103,8 +103,8 @@ describe("poiService", () => {
                 status: 200,
                 json: async () => ({
                     cells: [
-                        { s2_cell: "cell1", type: "peak" },
-                        { s2_cell: "cell2", type: "natural" },
+                        { s2_cell_id: "cell1", type: "peak" },
+                        { s2_cell_id: "cell2", type: "natural" },
                     ],
                 }),
             });
@@ -123,7 +123,7 @@ describe("poiService", () => {
                 status: 200,
                 json: async () => ({
                     cells: [
-                        { s2_cell: "cell1", type: "peak" },
+                        { s2_cell_id: "cell1", type: "peak" },
                         // cell2 has no data
                     ],
                 }),
@@ -193,12 +193,37 @@ describe("poiService", () => {
             expect(headers?.["Authorization"]).toBeUndefined();
         });
 
+        it("should use s2_cell_id from API response for resultMap and cache", async () => {
+            mockGetCellTypeFromCache.mockReturnValue(null);
+
+            mockFetch.mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                json: async () => ({
+                    cells: [
+                        { s2_cell_id: "cell1", type: "peak" },
+                        { s2_cell_id: "cell2", type: "natural" },
+                    ],
+                }),
+            });
+
+            const result = await fetchCellTypes(["cell1", "cell2"]);
+
+            expect(result.size).toBe(2);
+            expect(result.get("cell1")).toBe("peak");
+            expect(result.get("cell2")).toBe("natural");
+            expect(mockSetCellTypeInCache).toHaveBeenCalledTimes(2);
+            expect(mockSetCellTypeInCache).toHaveBeenCalledWith("cell1", "peak");
+            expect(mockSetCellTypeInCache).toHaveBeenCalledWith("cell2", "natural");
+            expect(mockSyncCacheToDisk).toHaveBeenCalled();
+        });
+
         it("should catch fetch errors and continue", async () => {
             mockGetCellTypeFromCache.mockReturnValue(null);
             mockFetch.mockRejectedValueOnce(new Error("Network error")).mockResolvedValueOnce({
                 ok: true,
                 status: 200,
-                json: async () => ({ cells: [{ s2_cell: "cell2", type: "peak" }] }),
+                json: async () => ({ cells: [{ s2_cell_id: "cell2", type: "peak" }] }),
             });
 
             // Suppress console.warn
