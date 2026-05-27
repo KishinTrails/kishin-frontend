@@ -49,6 +49,14 @@ export function tokenToCell(token: string): bigint {
     return s2.cellid.fromToken(token);
 }
 
+export function isValidCellId(cellId: bigint): boolean {
+    return cellId !== 0n;
+}
+
+export function isValidToken(token: string): boolean {
+    return isValidCellId(tokenToCell(token));
+}
+
 /**
  * Returns the S2 cell ID containing the given geographic point at the specified level.
  *
