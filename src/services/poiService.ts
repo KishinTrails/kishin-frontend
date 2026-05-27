@@ -19,7 +19,7 @@ export type CellType = "peak" | "natural" | "industrial" | "none";
  * Response from the /poi/bycell endpoint.
  */
 interface PoiByCellResponse {
-    s2_cell: string;
+    s2_cell_id: string;
     type: CellType;
     center: {
         lat: number;
@@ -32,6 +32,10 @@ interface PoiByCellResponse {
         geometry: string;
         elevation?: number;
     };
+}
+
+interface PoiByCellsResponse {
+    cells: PoiByCellResponse[];
 }
 
 /**
@@ -86,13 +90,14 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
                 }
                 continue;
             }
-            const data = await response.json();
+            const data: PoiByCellsResponse = await response.json();
+            console.log(data);
             const cellsWithData = new Set<string>();
             for (const cellData of data.cells) {
-                const type = cellData.type as CellType;
-                resultMap.set(cellData.s2_cell, type);
-                setCellTypeInCache(cellData.s2_cell, type);
-                cellsWithData.add(cellData.s2_cell);
+                const type = cellData.type;
+                resultMap.set(cellData.s2_cell_id, type);
+                setCellTypeInCache(cellData.s2_cell_id, type);
+                cellsWithData.add(cellData.s2_cell_id);
             }
             for (const cell of batch) {
                 if (!cellsWithData.has(cell)) {
