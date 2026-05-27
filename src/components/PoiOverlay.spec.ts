@@ -5,18 +5,6 @@ import { MockCanvasRenderingContext2D } from "@/__mocks__/canvas";
 
 type CellTypeKey = "peak" | "natural" | "industrial";
 
-vi.mock("h3-js", () => ({
-    cellToBoundary: vi.fn((cellId: string) => {
-        if (cellId === "invalid") return [];
-        return [
-            [45.75, 3.1],
-            [45.76, 3.1],
-            [45.76, 3.11],
-            [45.75, 3.11],
-        ];
-    }),
-}));
-
 class MockImage {
     src: string = "";
     width: number = 24;
@@ -39,7 +27,6 @@ const makeMap = (): any => ({
 
 /**
  * Mount PoiOverlay and wait for onMounted to complete.
- * rAF is already frozen globally so animate() never loops.
  */
 const mountOverlay = async (props: { map?: any; cellTypes: Map<string, CellTypeKey>; visibleCells: string[] }) => {
     const wrapper = mount(PoiOverlay, { props });
@@ -268,7 +255,7 @@ describe("PoiOverlay", () => {
             expect(mockContext.getCallsByMethod("drawImage").length).toBe(0);
         });
 
-        it("skips cells with an empty h3 boundary (invalid cell)", async () => {
+        it("skips cells with an empty S2 boundary (invalid cell)", async () => {
             const cellTypes = new Map<string, CellTypeKey>([["invalid", "peak"]]);
             wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["invalid"] });
             mockContext.clearHistory();
