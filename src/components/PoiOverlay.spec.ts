@@ -74,8 +74,8 @@ describe("PoiOverlay", () => {
         });
 
         it("accepts and exposes cellTypes prop", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
 
             expect(wrapper.props("cellTypes")).toEqual(cellTypes);
         });
@@ -205,10 +205,10 @@ describe("PoiOverlay", () => {
 
         it("calls beginPath once per visible cell with a known type", async () => {
             const cellTypes = new Map<string, CellTypeKey>([
-                ["cell1", "peak"],
-                ["cell2", "natural"],
+                ["1", "peak"],
+                ["2", "natural"],
             ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -218,10 +218,10 @@ describe("PoiOverlay", () => {
 
         it("calls drawImage once per visible cell with a known type", async () => {
             const cellTypes = new Map<string, CellTypeKey>([
-                ["cell1", "peak"],
-                ["cell2", "natural"],
+                ["1", "peak"],
+                ["2", "natural"],
             ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -231,10 +231,10 @@ describe("PoiOverlay", () => {
 
         it("calls stroke once per visible cell with a known type", async () => {
             const cellTypes = new Map<string, CellTypeKey>([
-                ["cell1", "peak"],
-                ["cell2", "natural"],
+                ["1", "peak"],
+                ["2", "natural"],
             ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -243,9 +243,9 @@ describe("PoiOverlay", () => {
         });
 
         it("skips cells whose type is not in cellTypes", async () => {
-            // cell1 is visible but has no entry in cellTypes
+            // 1 is visible but has no entry in cellTypes
             const cellTypes = new Map<string, CellTypeKey>();
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -269,11 +269,11 @@ describe("PoiOverlay", () => {
 
         it("draws N markers for N visible cells with known types", async () => {
             const cellTypes = new Map<string, CellTypeKey>([
-                ["cell1", "peak"],
-                ["cell2", "natural"],
-                ["cell3", "industrial"],
+                ["1", "peak"],
+                ["2", "natural"],
+                ["3", "industrial"],
             ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1", "cell2", "cell3"] });
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1", "2", "3"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -283,12 +283,12 @@ describe("PoiOverlay", () => {
         });
 
         it("only draws cells listed in visibleCells, not all cells in cellTypes", async () => {
-            // cellTypes has 2 entries but only cell1 is visible
+            // cellTypes has 2 entries but only 1 is visible
             const cellTypes = new Map<string, CellTypeKey>([
-                ["cell1", "peak"],
-                ["cell2", "natural"],
+                ["1", "peak"],
+                ["2", "natural"],
             ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -298,8 +298,8 @@ describe("PoiOverlay", () => {
 
         it("scales the marker image size correctly based on zoom", async () => {
             mockMap.getZoom.mockReturnValue(16);
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -314,8 +314,8 @@ describe("PoiOverlay", () => {
         });
 
         it("does not draw when map is undefined", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "peak"]]);
-            wrapper = await mountOverlay({ map: undefined, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
+            wrapper = await mountOverlay({ map: undefined, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -325,8 +325,8 @@ describe("PoiOverlay", () => {
 
         it("does not draw when canvas context is unavailable", async () => {
             HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -339,8 +339,8 @@ describe("PoiOverlay", () => {
 
     describe("Cell Type Rendering", () => {
         it("draws the peak image (instances[0]) for a peak cell", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -351,8 +351,8 @@ describe("PoiOverlay", () => {
         });
 
         it("draws the natural image (instances[1]) for a natural cell", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "natural"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "natural"]]);
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -363,8 +363,8 @@ describe("PoiOverlay", () => {
         });
 
         it("draws the industrial image (instances[2]) for an industrial cell", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "industrial"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "industrial"]]);
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -376,12 +376,12 @@ describe("PoiOverlay", () => {
 
         it("handles multiple cells with different types", async () => {
             const cellTypes = new Map<string, CellTypeKey>([
-                ["cell1", "peak"],
-                ["cell2", "natural"],
-                ["cell3", "industrial"],
+                ["1", "peak"],
+                ["2", "natural"],
+                ["3", "industrial"],
             ]);
 
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1", "cell2", "cell3"] });
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1", "2", "3"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -395,11 +395,11 @@ describe("PoiOverlay", () => {
 
     describe("Reactivity", () => {
         it("redraws when visibleCells changes", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "peak"]]);
+            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
             wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: [] });
             mockContext.clearHistory();
 
-            await wrapper.setProps({ visibleCells: ["cell1"] });
+            await wrapper.setProps({ visibleCells: ["1"] });
             await wrapper.vm.$nextTick();
 
             // watch triggers exactly one draw() with one cell
@@ -409,13 +409,13 @@ describe("PoiOverlay", () => {
         it("does NOT redraws when ONLY cellTypes changes", async () => {
             wrapper = await mountOverlay({
                 map: mockMap,
-                cellTypes: new Map<string, CellTypeKey>([["cell1", "peak"]]),
+                cellTypes: new Map<string, CellTypeKey>([["1", "peak"]]),
                 visibleCells: [],
             });
             mockContext.clearHistory();
 
-            const newCellTypes = new Map<string, CellTypeKey>([["cell2", "natural"]]);
-            await wrapper.setProps({ cellTypes: newCellTypes, visibleCells: ["cell1"] });
+            const newCellTypes = new Map<string, CellTypeKey>([["2", "natural"]]);
+            await wrapper.setProps({ cellTypes: newCellTypes, visibleCells: ["1"] });
             await wrapper.vm.$nextTick();
 
             expect(mockContext.getCallsByMethod("beginPath").length).toBe(0);
@@ -424,21 +424,21 @@ describe("PoiOverlay", () => {
         it("redraws when cellTypes and visibleCells change together", async () => {
             wrapper = await mountOverlay({
                 map: mockMap,
-                cellTypes: new Map<string, CellTypeKey>([["cell1", "peak"]]),
+                cellTypes: new Map<string, CellTypeKey>([["1", "peak"]]),
                 visibleCells: [],
             });
             mockContext.clearHistory();
 
-            const newCellTypes = new Map<string, CellTypeKey>([["cell2", "natural"]]);
-            await wrapper.setProps({ cellTypes: newCellTypes, visibleCells: ["cell2"] });
+            const newCellTypes = new Map<string, CellTypeKey>([["2", "natural"]]);
+            await wrapper.setProps({ cellTypes: newCellTypes, visibleCells: ["2"] });
             await wrapper.vm.$nextTick();
 
             expect(mockContext.getCallsByMethod("beginPath").length).toBe(1);
         });
 
         it("clears markers when visibleCells becomes empty", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
+            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             await wrapper.setProps({ visibleCells: [] });
@@ -463,8 +463,8 @@ describe("PoiOverlay", () => {
         });
 
         it("does nothing without map", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["cell1", "peak"]]);
-            wrapper = await mountOverlay({ map: undefined, cellTypes, visibleCells: ["cell1"] });
+            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
+            wrapper = await mountOverlay({ map: undefined, cellTypes, visibleCells: ["1"] });
             mockContext.clearHistory();
 
             wrapper.vm.draw();
@@ -477,8 +477,8 @@ describe("PoiOverlay", () => {
             HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
             wrapper = await mountOverlay({
                 map: mockMap,
-                cellTypes: new Map<string, CellTypeKey>([["cell1", "peak"]]),
-                visibleCells: ["cell1"],
+                cellTypes: new Map<string, CellTypeKey>([["1", "peak"]]),
+                visibleCells: ["1"],
             });
             mockContext.clearHistory();
 
