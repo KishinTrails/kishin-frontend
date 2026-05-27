@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import { tokenToCell, cellToVertices } from '@/utils/s2Utils';
+import { tokenToCell, cellToVertices, isValidToken } from '@/utils/s2Utils';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 
 /**
@@ -48,7 +48,8 @@ const resizeCanvas = () => {
    */
   const drawS2CellImage = (c: CanvasRenderingContext2D, token: string, img: HTMLImageElement | null) => {
   if (!props.map || !img || typeof props.map.project !== 'function') return;
-  
+  if (!isValidToken(token)) return;
+
   let vertices: Array<{ lat: number; lng: number }>;
 
   try {
