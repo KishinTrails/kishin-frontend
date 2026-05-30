@@ -1,16 +1,25 @@
 <template>
   <div class="gps-tracker">
     <div class="gps-header">
-      <span class="gps-icon" :class="{ active: isTracking }">⊕</span>
+      <span
+        class="gps-icon"
+        :class="{ active: isTracking }"
+      >⊕</span>
       <span class="gps-title">GPS Tracker</span>
     </div>
 
     <div class="gps-status">
-      <span class="status-dot" :class="statusClass"></span>
+      <span
+        class="status-dot"
+        :class="statusClass"
+      />
       <span>{{ statusLabel }}</span>
     </div>
 
-    <div v-if="lastPosition" class="gps-coords">
+    <div
+      v-if="lastPosition"
+      class="gps-coords"
+    >
       <div class="coord">
         <span class="coord-label">LAT</span>
         <span class="coord-value">{{ lastPosition.latitude.toFixed(6) }}</span>
@@ -25,11 +34,27 @@
       </div>
     </div>
 
-    <div v-if="error" class="gps-error">{{ error }}</div>
+    <div
+      v-if="error"
+      class="gps-error"
+    >
+      {{ error }}
+    </div>
 
     <div class="gps-controls">
-      <button v-if="!isTracking" @click="startTracking">Start</button>
-      <button v-else @click="stopTracking" class="stop">Stop</button>
+      <button
+        v-if="!isTracking"
+        @click="startTracking"
+      >
+        Start
+      </button>
+      <button
+        v-else
+        class="stop"
+        @click="stopTracking"
+      >
+        Stop
+      </button>
     </div>
   </div>
 </template>
