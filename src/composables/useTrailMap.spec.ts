@@ -3,7 +3,7 @@ import { withSetup } from "@/__tests__/utils/withSetup";
 import { useTrailMap } from "@/composables/useTrailMap";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
-// Only the three service boundaries matter here. No DOM, no maplibre, no h3.
+// Only the three service boundaries matter here. No DOM, no maplibre, no s2.
 
 vi.mock("@/services/trailsService", () => ({
     fetchExploredTiles: vi.fn(),
@@ -17,8 +17,26 @@ vi.mock("@/services/cacheService", () => ({
     getCellTypeFromCache: vi.fn().mockReturnValue(null),
 }));
 
-vi.mock("h3-js", () => ({
-    polygonToCells: vi.fn().mockReturnValue(["cell1", "cell2", "cell3"]),
+// vi.mock("s2js", () => {
+//     const mockCells = ["cell1", "cell2", "cell3"];
+//     return {
+//         s2: {
+//             Rect: vi.fn(),
+//             RegionCoverer: vi.fn().mockImplementation(function (this: any) {
+//                 this.covering = vi.fn().mockReturnValue(mockCells);
+//             }),
+//             cellid: {
+//                 toToken: vi.fn().mockImplementation((cell: string) => cell),
+//             },
+//         },
+//         r1: { Interval: vi.fn() },
+//         s1: { Interval: vi.fn() },
+//     };
+// });
+
+vi.mock("@/utils/s2Utils", () => ({
+    cellsFromBounds: vi.fn().mockReturnValue([1n, 2n, 3n]),
+    cellToToken: vi.fn().mockImplementation((id: bigint) => `cell${id}`),
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,42 +105,23 @@ describe("useTrailMap", () => {
         });
     });
 
-    // ── computeCellsFromBounds ─────────────────────────────────────────────────
+    // ── updateVisibleCells ─────────────────────────────────────────────────────
 
     describe("computeCellsFromBounds", () => {
-        it("returns the cells produced by h3.polygonToCells", () => {
+        it("builds the correct Rect from bounds", async () => {
+            const { cellsFromBounds } = await import("@/utils/s2Utils");
             const { result } = withSetup(useTrailMap);
 
-            const cells = result.computeCellsFromBounds(makeBounds());
+            result.updateVisibleCells(makeBounds({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }));
 
-            expect(cells).toEqual(["cell1", "cell2", "cell3"]);
-        });
-
-        it("builds the correct closed polygon from bounds", async () => {
-            const { polygonToCells } = await import("h3-js");
-            const { result } = withSetup(useTrailMap);
-
-            result.computeCellsFromBounds(makeBounds({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }));
-
-            expect(polygonToCells).toHaveBeenCalledWith(
-                [
-                    [1, 2], // SW
-                    [3, 2], // NW
-                    [3, 4], // NE
-                    [1, 4], // SE
-                    [1, 2], // close
-                ],
-                10, // H3_RESOLUTION
-            );
+            expect(cellsFromBounds).toHaveBeenCalledWith({ lat: 1, lng: 2 }, { lat: 3, lng: 4 });
         });
     });
-
-    // ── updateVisibleCells ─────────────────────────────────────────────────────
 
     describe("updateVisibleCells", () => {
         it("splits cells correctly into explored and fog", () => {
             const { result } = withSetup(useTrailMap);
-            // h3 mock returns ['cell1', 'cell2', 'cell3']
+            // s2 mock returns ['cell1', 'cell2', 'cell3']
             result.visitedCells.value = new Set(["cell1"]);
 
             result.updateVisibleCells(makeBounds());
@@ -269,8 +268,8 @@ describe("useTrailMap", () => {
             vi.mocked(fetchCellTypes).mockResolvedValue(new Map());
             const { result } = withSetup(useTrailMap);
 
-            // 1. Manually populate visitedCells so there is work for the API to do
-            // (Matching the cells returned by your h3 mock)
+            // Manually populate visitedCells so there is work for the API to do
+            // (Matching the cells returned by the s2 mock)
             result.visitedCells.value = new Set(["cell1", "cell2", "cell3"]);
 
             result.debouncedUpdate(makeBounds());

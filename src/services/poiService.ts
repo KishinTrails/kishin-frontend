@@ -1,13 +1,13 @@
 /**
  * POI (Point of Interest) service for fetching cell type data from the API.
- * Handles caching, batch requests, and localStorage persistence.
+ * Handles caching, batch requests, and localStorage persistence for S2 cells.
  */
 
 import { getToken } from "./authService";
 import { getCellTypeFromCache, setCellTypeInCache, syncCacheToDisk } from "./cacheService";
 
 /**
- * Type of POI/feature in an H3 cell.
+ * Type of POI/feature in an S2 cell.
  * - "peak": Mountain peaks and elevated features
  * - "natural": Natural areas (parks, forests)
  * - "industrial": Industrial zones
@@ -19,7 +19,7 @@ export type CellType = "peak" | "natural" | "industrial" | "none";
  * Response from the /poi/bycell endpoint.
  */
 interface PoiByCellResponse {
-    h3_cell: string;
+    s2_cell_id: string;
     type: CellType;
     center: {
         lat: number;
@@ -34,6 +34,10 @@ interface PoiByCellResponse {
     };
 }
 
+interface PoiByCellsResponse {
+    cells: PoiByCellResponse[];
+}
+
 /**
  * Result from fetching a single cell's POI data.
  */
@@ -46,12 +50,12 @@ const API_BASE = `${import.meta.env.VITE_API_BASE}/poi`;
 const BATCH_SIZE = 100;
 
 /**
- * Fetch cell types for multiple H3 cells in batch.
+ * Fetch cell types for multiple S2 cells in batch.
  * Uses local cache to avoid redundant API calls.
  *
- * @param cells - Array of H3 cell identifiers
+ * @param cells - Array of S2 cell tokens
  * @param signal - Optional AbortSignal for cancellation
- * @returns Map of H3 cell IDs to their cell types
+ * @returns Map of S2 cell tokens to their cell types
  */
 export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Promise<Map<string, CellType>> {
     const cellsToFetch = cells.filter((cell) => getCellTypeFromCache(cell) === null);
@@ -74,7 +78,7 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
         const batch = cellsToFetch.slice(i, i + BATCH_SIZE);
         const params = new URLSearchParams();
         for (const cell of batch) {
-            params.append("h3Cells", cell);
+            params.append("s2Cells", cell);
         }
         const url = `${API_BASE}/bycells?${params.toString()}`;
 
@@ -86,13 +90,14 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
                 }
                 continue;
             }
-            const data = await response.json();
+            const data: PoiByCellsResponse = await response.json();
+            console.log(data);
             const cellsWithData = new Set<string>();
             for (const cellData of data.cells) {
-                const type = cellData.type as CellType;
-                resultMap.set(cellData.h3_cell, type);
-                setCellTypeInCache(cellData.h3_cell, type);
-                cellsWithData.add(cellData.h3_cell);
+                const type = cellData.type;
+                resultMap.set(cellData.s2_cell_id, type);
+                setCellTypeInCache(cellData.s2_cell_id, type);
+                cellsWithData.add(cellData.s2_cell_id);
             }
             for (const cell of batch) {
                 if (!cellsWithData.has(cell)) {
@@ -100,6 +105,9 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
                 }
             }
         } catch (err) {
+            if (err instanceof DOMException && err.name === "AbortError") {
+                throw err;
+            }
             console.warn(`[poiService] Batch error:`, err);
         }
     }
@@ -110,15 +118,15 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
 }
 
 /**
- * Fetch POI data for a single H3 cell.
+ * Fetch POI data for a single S2 cell.
  * Checks local cache first, then fetches from API if needed.
  *
- * @param h3Cell - The H3 cell identifier
+ * @param cell - The S2 cell token
  * @param signal - Optional AbortSignal for cancellation
  * @returns FetchResult containing the cell type and whether it was a cache hit
  */
-export async function fetchCellType(h3Cell: string, signal?: AbortSignal): Promise<FetchResult> {
-    const cached = getCellTypeFromCache(h3Cell);
+export async function fetchCellType(cell: string, signal?: AbortSignal): Promise<FetchResult> {
+    const cached = getCellTypeFromCache(cell);
     if (cached !== null) {
         return { type: cached === "none" ? null : cached, cacheHit: true };
     }
@@ -131,14 +139,14 @@ export async function fetchCellType(h3Cell: string, signal?: AbortSignal): Promi
         headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE}/bycell?h3Cell=${h3Cell}`, { headers, signal });
+    const response = await fetch(`${API_BASE}/bycell?s2Cell=${cell}`, { headers, signal });
     if (!response.ok) {
         return { type: null, cacheHit: false };
-        // throw new Error(`Failed to fetch POI for cell: ${h3Cell}`);
+        // throw new Error(`Failed to fetch POI for cell: ${cell}`);
     }
     const data: PoiByCellResponse = await response.json();
     const type = data.type;
-    setCellTypeInCache(h3Cell, type);
+    setCellTypeInCache(cell, type);
     syncCacheToDisk();
     return { type, cacheHit: false };
 }
