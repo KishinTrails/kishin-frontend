@@ -19,7 +19,7 @@ Mobile-first Vue 3 application for exploring and tracking hiking trails with fog
 ## Features
 
 - **Interactive Map** - MapLibre GL-based map with OpenStreetMap tiles
-- **Fog of War** - Track explored areas with H3 geospatial indexing
+- **Fog of War** - Track explored areas with S2 geospatial indexing
 - **POI Markers** - Display points of interest (peaks, natural areas, industrial zones)
 - **Authentication** - JWT-based login/logout with protected routes
 - **Offline Caching** - LocalStorage persistence for POI data
@@ -33,7 +33,7 @@ Mobile-first Vue 3 application for exploring and tracking hiking trails with fog
 - **Language**: TypeScript 5
 - **Build**: Vite 7
 - **Map**: MapLibre GL
-- **Geospatial**: H3 (Uber's hexagonal hierarchical spatial index)
+- **Geospatial**: S2 (Google's spherical geometry library)
 - **Testing**: Vitest (unit), Cypress (e2e)
 - **Mobile**: Capacitor 8 (Android)
 
@@ -97,12 +97,12 @@ This frontend consumes the [kishin-api](https://github.com/KishinTrails/kishin-a
 
 ### Trails
 
-- **GET** `/trails/explored` - Get user's explored H3 cells (protected)
+- **GET** `/trails/explored` - Get user's explored S2 cells (protected)
 
 ### POI (Points of Interest)
 
-- **GET** `/poi/bycell?h3Cell={cell}` - Get POI for single H3 cell
-- **GET** `/poi/bycells?h3Cells={cell1}&h3Cells={cell2}...` - Batch fetch POIs (up to 100 cells)
+- **GET** `/poi/bycell?s2Cell={cell}` - Get POI for single S2 cell
+- **GET** `/poi/bycells?s2Cells={cell1}&s2Cells={cell2}...` - Batch fetch POIs (up to 100 cells)
 
 All protected endpoints require `Authorization: Bearer <token>` header.
 
