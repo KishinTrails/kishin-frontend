@@ -37,6 +37,7 @@ vi.mock("@/services/cacheService", () => ({
 vi.mock("@/utils/s2Utils", () => ({
     cellsFromBounds: vi.fn().mockReturnValue([1n, 2n, 3n]),
     cellToToken: vi.fn().mockImplementation((id: bigint) => `cell${id}`),
+    isCellInBounds: vi.fn().mockReturnValue(true),
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ describe("useTrailMap", () => {
         it("builds the correct Rect from bounds", async () => {
             const { cellsFromBounds } = await import("@/utils/s2Utils");
             const { result } = withSetup(useTrailMap);
+            result.filterByExplored.value = false;
 
             result.updateVisibleCells(makeBounds({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }));
 
@@ -119,42 +121,50 @@ describe("useTrailMap", () => {
     });
 
     describe("updateVisibleCells", () => {
-        it("splits cells correctly into explored and fog", () => {
+        it("splits cells correctly into explored and fog", async () => {
+            const { isCellInBounds } = await import("@/utils/s2Utils");
             const { result } = withSetup(useTrailMap);
-            // s2 mock returns ['cell1', 'cell2', 'cell3']
             result.visitedCells.value = new Set(["cell1"]);
+            vi.mocked(isCellInBounds).mockReturnValueOnce(true);
 
             result.updateVisibleCells(makeBounds());
 
             expect(result.visibleExplored.value).toEqual(["cell1"]);
-            expect(result.visibleFog.value).toEqual(["cell2", "cell3"]);
         });
 
-        it("puts all cells in fog when none are visited", () => {
+        it("excludes cells outside viewport bounds", async () => {
+            const { isCellInBounds } = await import("@/utils/s2Utils");
             const { result } = withSetup(useTrailMap);
+            result.visitedCells.value = new Set(["cell1", "cell2", "cell3"]);
+            vi.mocked(isCellInBounds)
+                .mockReturnValueOnce(true)
+                .mockReturnValueOnce(false)
+                .mockReturnValueOnce(true);
+
+            result.updateVisibleCells(makeBounds());
+
+            expect(result.visibleExplored.value).toEqual(["cell1", "cell3"]);
+        });
+
+        it("returns empty when no visited cells are in view", async () => {
+            const { isCellInBounds } = await import("@/utils/s2Utils");
+            const { result } = withSetup(useTrailMap);
+            result.visitedCells.value = new Set(["cell1", "cell2"]);
+            vi.mocked(isCellInBounds).mockReturnValue(false);
 
             result.updateVisibleCells(makeBounds());
 
             expect(result.visibleExplored.value).toEqual([]);
-            expect(result.visibleFog.value).toEqual(["cell1", "cell2", "cell3"]);
         });
 
-        it("puts all cells in explored when all are visited", () => {
+        it("also updates visibleCells with the full set in tile selection mode", async () => {
             const { result } = withSetup(useTrailMap);
-            result.visitedCells.value = new Set(["cell1", "cell2", "cell3"]);
-
-            result.updateVisibleCells(makeBounds());
-
-            expect(result.visibleExplored.value).toEqual(["cell1", "cell2", "cell3"]);
-            expect(result.visibleFog.value).toEqual([]);
-        });
-
-        it("also updates visibleCells with the full set", () => {
-            const { result } = withSetup(useTrailMap);
+            result.filterByExplored.value = false;
 
             result.updateVisibleCells(makeBounds());
 
             expect(result.visibleCells.value).toEqual(["cell1", "cell2", "cell3"]);
+            expect(result.visibleExplored.value).toEqual(["cell1", "cell2", "cell3"]);
         });
     });
 
@@ -251,6 +261,7 @@ describe("useTrailMap", () => {
             vi.useFakeTimers();
             vi.mocked(fetchCellTypes).mockResolvedValue(new Map());
             const { result } = withSetup(useTrailMap);
+            result.filterByExplored.value = false;
 
             result.debouncedUpdate(makeBounds());
 
@@ -267,10 +278,7 @@ describe("useTrailMap", () => {
             vi.useFakeTimers();
             vi.mocked(fetchCellTypes).mockResolvedValue(new Map());
             const { result } = withSetup(useTrailMap);
-
-            // Manually populate visitedCells so there is work for the API to do
-            // (Matching the cells returned by the s2 mock)
-            result.visitedCells.value = new Set(["cell1", "cell2", "cell3"]);
+            result.filterByExplored.value = false;
 
             result.debouncedUpdate(makeBounds());
             vi.advanceTimersByTime(200);
@@ -280,7 +288,6 @@ describe("useTrailMap", () => {
 
             await vi.runAllTimersAsync();
 
-            // Now the internal logic will find explored cells and call the service
             expect(fetchCellTypes).toHaveBeenCalledOnce();
         });
 

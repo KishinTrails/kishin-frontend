@@ -16,7 +16,7 @@
           @active-cells-change="PERLIN_ACTIVE_CELLS = $event"
         />
         <FogOverlay
-          v-if="showFog"
+          v-if="showFog && filterByExplored"
           :map="map"
           :explored-cells="visibleExplored"
           :opacity="FOG_OPACITY"
@@ -54,6 +54,7 @@
               <input
                 v-model="showFog"
                 type="checkbox"
+                :disabled="!filterByExplored"
               >
               <span>Fog Overlay</span>
             </label>
@@ -210,9 +211,6 @@
             <div class="stat-item">
               Visible Explored: {{ visibleExplored.length }}
             </div>
-            <div class="stat-item">
-              Visible Fog: {{ visibleFog.length }}
-            </div>
           </div>
 
           <button
@@ -281,7 +279,7 @@ const cellToGroup = ref<Map<string, number>>(new Map());
 const {
   visitedCells,
   visibleExplored,
-  visibleFog,
+  
   cellTypes,
   filterByExplored,
   loadExploredTiles,
