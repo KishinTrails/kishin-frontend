@@ -57,6 +57,14 @@ export function isValidToken(token: string): boolean {
     return isValidCellId(tokenToCell(token));
 }
 
+export function isCellInBounds(token: string, sw: { lat: number; lng: number }, ne: { lat: number; lng: number }): boolean {
+    const cellId = tokenToCell(token);
+    const latLng = s2.LatLng.fromPoint(s2.Cell.fromCellID(cellId).center());
+    const lat = s1.angle.degrees(latLng.lat);
+    const lng = s1.angle.degrees(latLng.lng);
+    return lat >= sw.lat && lat <= ne.lat && lng >= sw.lng && lng <= ne.lng;
+}
+
 /**
  * Returns the S2 cell ID containing the given geographic point at the specified level.
  *

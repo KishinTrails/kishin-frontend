@@ -4,7 +4,7 @@
  */
 
 import { ref, onUnmounted } from "vue";
-import { cellsFromBounds, cellToToken } from "@/utils/s2Utils";
+import { cellsFromBounds, cellToToken, isCellInBounds } from "@/utils/s2Utils";
 import { fetchCellTypes as fetchCellTypesFromService } from "@/services/poiService";
 import { getCellTypeFromCache } from "@/services/cacheService";
 import { fetchExploredTiles } from "@/services/trailsService";
@@ -61,31 +61,28 @@ export function useTrailMap() {
     };
 
     /**
-     * Split visible cells into explored and fog lists based on visitedCells.
+     * Compute visible explored and fog cells from current viewport bounds.
+     *
+     * Explore mode: iterate visitedCells and keep those within bounds.
+     * Tile selection mode: generate all cells in viewport bounds.
      */
     const updateVisibleCells = (bounds: MapBounds): void => {
         const sw = bounds.getSouthWest();
         const ne = bounds.getNorthEast();
-        const cells = cellsFromBounds(sw, ne).map(cellToToken);
-        visibleCells.value = cells;
 
-        const explored: string[] = [];
-        const fog: string[] = [];
-
-        for (const cell of cells) {
-            if (filterByExplored.value) {
-                if (visitedCells.value.has(cell)) {
-                    explored.push(cell);
-                } else {
-                    fog.push(cell);
-                }
-            } else {
-                explored.push(cell);
-            }
+        if (filterByExplored.value) {
+            const explored = Array.from(visitedCells.value).filter(cell =>
+                isCellInBounds(cell, sw, ne)
+            );
+            visibleCells.value = [];
+            visibleExplored.value = explored;
+            visibleFog.value = [];
+        } else {
+            const cells = cellsFromBounds(sw, ne).map(cellToToken);
+            visibleCells.value = cells;
+            visibleExplored.value = cells;
+            visibleFog.value = [];
         }
-
-        visibleExplored.value = explored;
-        visibleFog.value = fog;
     };
 
     /**
