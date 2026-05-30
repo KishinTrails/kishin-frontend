@@ -1,172 +1,216 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import * as h3 from 'h3-js';
 import maplibregl from 'maplibre-gl';
 import type { Map as MaplibreMap } from 'maplibre-gl';
+import { cellToToken, tokenToCell, cellFromLatLng, cellToVertices } from '@/utils/s2Utils';
+import { hexToRgba } from '@/utils/color';
+import type { TileGroup } from '@/types/perlinConfig';
 
 interface Props {
   map?: MaplibreMap;
   selectedCells?: string[];
+  tileGroups?: TileGroup[];
+  activeGroupIndex?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   map: undefined,
-  selectedCells: () => []
+  selectedCells: () => [],
+  tileGroups: () => [],
+  activeGroupIndex: 0
 });
 
 const emit = defineEmits<{
-  selectedCellsChange: [cells: string[]];
+  toggleCell: [cell: string];
+  clearAllCells: [];
 }>();
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 const ctx = ref<CanvasRenderingContext2D | null>(null);
 
+/** Mirrors props.selectedCells as a Set for O(1) lookup during drawing and hit-testing. */
 const selectedCellsSet = ref<Set<string>>(new Set());
 
-// Left-click drag state
-const isDragging = ref(false);
-const dragStart = ref<{ x: number; y: number } | null>(null);
-const dragEnd = ref<{ x: number; y: number } | null>(null);
-const wasDrag = ref(false);
+/** The S2 token of the cell currently under the cursor, or null if none. */
+const hoveredCell = ref<string | null>(null);
 
+/** Screen position of the tooltip anchor, tracking the cursor. */
+const tooltipPosition = ref<{ x: number; y: number } | null>(null);
+
+/**
+ * Mouse position at the time of mousedown.
+ * Used to distinguish a click (small delta) from a drag (large delta).
+ * Intentionally NOT updated during mousemove so the delta always measures
+ * total displacement from where the button was pressed.
+ */
+const mouseDownPos = ref<{ x: number; y: number } | null>(null);
+
+/**
+ * Whether the current gesture has exceeded CLICK_THRESHOLD and should be
+ * treated as a pan rather than a click.
+ */
+const isDragging = ref(false);
+
+/**
+ * Minimum pixel displacement from mousedown before a gesture is classified
+ * as a drag. Below this threshold the mouseup is treated as a click.
+ */
 const CLICK_THRESHOLD = 5;
 
-// How many pixels to pan per arrow key press
-const ARROW_PAN_PX = 100;
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
+/** Sync the local Set mirror whenever the selectedCells prop changes. */
 const updateSelectedCellsSet = () => {
   selectedCellsSet.value = new Set(props.selectedCells);
 };
 
-const getCellsInScreenRectangle = (
-  start: { x: number; y: number },
-  end: { x: number; y: number }
-): string[] => {
-  if (!props.map) return [];
-
-  const minX = Math.min(start.x, end.x);
-  const maxX = Math.max(start.x, end.x);
-  const minY = Math.min(start.y, end.y);
-  const maxY = Math.max(start.y, end.y);
-
-  const nw = props.map.unproject([minX, minY]);
-  const se = props.map.unproject([maxX, maxY]);
-
-  const polygon: [number, number][] = [
-    [nw.lat, nw.lng],
-    [se.lat, nw.lng],
-    [se.lat, se.lng],
-    [nw.lat, se.lng],
-    [nw.lat, nw.lng],
-  ];
-
-  return h3.polygonToCells(polygon, 10);
+/**
+ * Find the TileGroup that owns the given cell token, if any.
+ * Returns undefined when the cell is selected but not assigned to a group.
+ */
+const findGroupForCell = (cell: string): TileGroup | undefined => {
+  return props.tileGroups.find(g => g.condition.cells.includes(cell));
 };
 
-const toggleCells = (cells: string[]) => {
-  cells.forEach(cell => {
-    if (selectedCellsSet.value.has(cell)) {
-      selectedCellsSet.value.delete(cell);
-    } else {
-      selectedCellsSet.value.add(cell);
-    }
-  });
-  emit('selectedCellsChange', Array.from(selectedCellsSet.value));
-};
-
-// ─── Arrow-key pan ───────────────────────────────────────────────────────────
-
-const handleKeyDown = (e: KeyboardEvent) => {
-  if (!props.map) return;
-
-  // Don't steal arrow keys from inputs/textareas
-  const tag = (e.target as HTMLElement).tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-
-  const panMap = (dx: number, dy: number) => {
-    e.preventDefault();
-    props.map!.panBy([dx, dy], { animate: true });
-  };
-
-  switch (e.key) {
-    case 'ArrowUp':    return panMap(0, -ARROW_PAN_PX);
-    case 'ArrowDown':  return panMap(0,  ARROW_PAN_PX);
-    case 'ArrowLeft':  return panMap(-ARROW_PAN_PX, 0);
-    case 'ArrowRight': return panMap( ARROW_PAN_PX, 0);
+/**
+ * Resolve the fill and stroke colours for a selected cell.
+ * Uses the group colour when the cell belongs to a TileGroup,
+ * falling back to a default blue palette.
+ */
+const getCellColor = (cell: string): { fill: string; stroke: string } => {
+  const group = findGroupForCell(cell);
+  if (group) {
+    return {
+      fill: hexToRgba(group.color, 0.4),
+      stroke: group.color
+    };
   }
+  return {
+    fill: 'rgba(52, 152, 219, 0.4)',
+    stroke: 'rgba(52, 152, 219, 1)'
+  };
 };
 
-// ─── Wheel: forward to MapLibre canvas for zoom ──────────────────────────────
+/**
+ * Return the S2 token of the selected cell at the given screen position,
+ * or null if the position does not hit any selected cell.
+ *
+ * Only selected cells are considered — unselected cells are transparent
+ * to hover and tooltip logic.
+ */
+const findCellAtPosition = (x: number, y: number): string | null => {
+  if (!props.map) return null;
+  const coords = props.map.unproject([x, y]);
+  const cell = cellToToken(cellFromLatLng(coords.lat, coords.lng));
+  if (selectedCellsSet.value.has(cell)) {
+    return cell;
+  }
+  return null;
+};
 
+/**
+ * Forward wheel events to the underlying map canvas so zoom behaviour
+ * is preserved even though this overlay captures pointer events.
+ */
 const handleWheel = (e: WheelEvent) => {
   e.preventDefault();
   props.map?.getCanvas().dispatchEvent(new WheelEvent('wheel', e));
 };
 
-// ─── Mouse: left-click selection ─────────────────────────────────────────────
-
+/**
+ * Record the cursor position at mousedown.
+ * Dragging and click classification are both derived from this origin —
+ * it is never updated during the gesture so the total displacement is
+ * always available at mouseup.
+ */
 const handleMouseDown = (e: MouseEvent) => {
   if (e.button !== 0) return;
+  mouseDownPos.value = { x: e.clientX, y: e.clientY };
+  isDragging.value = false;
 
-  isDragging.value = true;
-  wasDrag.value = false;
-  dragStart.value = { x: e.clientX, y: e.clientY };
-  dragEnd.value = { x: e.clientX, y: e.clientY };
+  // Forward to the map canvas so maplibre can take over pan handling.
+  props.map?.getCanvas().dispatchEvent(new MouseEvent('mousedown', e));
 };
 
+/**
+ * Handle cursor movement during a gesture.
+ *
+ * Once the cursor has moved more than CLICK_THRESHOLD pixels from the
+ * mousedown origin the gesture is promoted to a drag and map panning is
+ * delegated entirely to maplibre via forwarded events. Below the threshold
+ * no panning occurs so accidental micro-movements do not disrupt clicks.
+ *
+ * Hover detection and tooltip update run on every move regardless of
+ * drag state so the UI stays responsive.
+ */
 const handleMouseMove = (e: MouseEvent) => {
-  if (!isDragging.value || !dragStart.value) return;
+  if (mouseDownPos.value) {
+    const dx = Math.abs(e.clientX - mouseDownPos.value.x);
+    const dy = Math.abs(e.clientY - mouseDownPos.value.y);
 
-  dragEnd.value = { x: e.clientX, y: e.clientY };
+    if (!isDragging.value && (dx > CLICK_THRESHOLD || dy > CLICK_THRESHOLD)) {
+      isDragging.value = true;
+    }
 
-  if (!wasDrag.value) {
-    const dx = e.clientX - dragStart.value.x;
-    const dy = e.clientY - dragStart.value.y;
-    if (Math.sqrt(dx * dx + dy * dy) > CLICK_THRESHOLD) {
-      wasDrag.value = true;
+    if (isDragging.value) {
+      // Delegate panning to maplibre by forwarding the raw event.
+      props.map?.getCanvas().dispatchEvent(new MouseEvent('mousemove', e));
     }
   }
 
+  hoveredCell.value = findCellAtPosition(e.clientX, e.clientY);
+  tooltipPosition.value = hoveredCell.value ? { x: e.clientX, y: e.clientY } : null;
   draw();
 };
 
+/**
+ * Conclude the current gesture on mouseup.
+ *
+ * If the total displacement stayed within CLICK_THRESHOLD the gesture is
+ * classified as a click and toggleCell is emitted for the cell under the
+ * cursor. Drags are silently concluded — panning was already handled by
+ * maplibre during mousemove.
+ *
+ * The mouseup event is always forwarded to the map canvas so maplibre can
+ * clean up its own drag state regardless of how we classify the gesture.
+ */
 const handleMouseUp = (e: MouseEvent) => {
-  if (e.button !== 0 || !isDragging.value || !dragStart.value || !dragEnd.value) return;
+  if (e.button !== 0 || !mouseDownPos.value) return;
 
-  if (wasDrag.value) {
-    // Rectangle selection
-    const cells = getCellsInScreenRectangle(dragStart.value, dragEnd.value);
-    if (cells.length > 0) toggleCells(cells);
-  } else {
-    // Single-cell click toggle
-    if (props.map) {
-      const coords = props.map.unproject([e.clientX, e.clientY]);
-      const cell = h3.latLngToCell(coords.lat, coords.lng, 10);
-      if (cell) toggleCells([cell]);
-    }
+  props.map?.getCanvas().dispatchEvent(new MouseEvent('mouseup', e));
+
+  if (!isDragging.value && props.map) {
+    const coords = props.map.unproject([e.clientX, e.clientY]);
+    const cell = cellToToken(cellFromLatLng(coords.lat, coords.lng));
+    if (cell) emit('toggleCell', cell);
   }
 
+  mouseDownPos.value = null;
   isDragging.value = false;
-  wasDrag.value = false;
-  dragStart.value = null;
-  dragEnd.value = null;
   draw();
 };
 
+/**
+ * Reset gesture and hover state when the cursor leaves the overlay.
+ * The map canvas receives a mouseup so maplibre does not get stuck in
+ * a drag state if the cursor exits the overlay during a pan.
+ */
 const handleMouseLeave = () => {
-  if (!isDragging.value) return;
-  // Cancel drag if cursor leaves the canvas
+  if (mouseDownPos.value) {
+    props.map?.getCanvas().dispatchEvent(new MouseEvent('mouseup', {}));
+  }
+  mouseDownPos.value = null;
   isDragging.value = false;
-  wasDrag.value = false;
-  dragStart.value = null;
-  dragEnd.value = null;
+  hoveredCell.value = null;
+  tooltipPosition.value = null;
   draw();
 };
 
-// ─── Draw ────────────────────────────────────────────────────────────────────
-
+/**
+ * Render selected cells and the hover tooltip onto the canvas.
+ *
+ * Uses Mercator coordinates for screen projection to stay consistent with
+ * maplibre's own rendering pipeline. Each selected cell is drawn with its
+ * group colour (or the default blue) as a filled + stroked polygon.
+ */
 const draw = () => {
   if (!ctx.value || !canvas.value || !props.map) return;
 
@@ -184,47 +228,59 @@ const draw = () => {
   const spanX = seM.x - nwM.x;
   const spanY = seM.y - nwM.y;
 
-  if (selectedCellsSet.value.size > 0) {
-    c.fillStyle = 'rgba(52, 152, 219, 0.4)';
-    c.strokeStyle = 'rgba(52, 152, 219, 1)';
+  for (const cell of selectedCellsSet.value) {
+    const vertices = cellToVertices(tokenToCell(cell));
+    if (!vertices || vertices.length === 0) continue;
+
+    const colors = getCellColor(cell);
+    c.fillStyle = colors.fill;
+    c.strokeStyle = colors.stroke;
     c.lineWidth = 2;
 
-    for (const cell of selectedCellsSet.value) {
-      const boundary = h3.cellToBoundary(cell);
-      if (!boundary || boundary.length === 0) continue;
-
-      c.beginPath();
-      boundary.forEach((coord: number[], i: number) => {
-        const mercator = maplibregl.MercatorCoordinate.fromLngLat({ lng: coord[1], lat: coord[0] });
-        const screenX = ((mercator.x - nwM.x) / spanX) * window.innerWidth;
-        const screenY = ((mercator.y - nwM.y) / spanY) * window.innerHeight;
-        if (i === 0) c.moveTo(screenX, screenY);
-        else c.lineTo(screenX, screenY);
-      });
-      c.closePath();
-      c.fill();
-      c.stroke();
-    }
+    c.beginPath();
+    vertices.forEach((coord, i) => {
+      const mercator = maplibregl.MercatorCoordinate.fromLngLat({ lng: coord.lng, lat: coord.lat });
+      const screenX = ((mercator.x - nwM.x) / spanX) * window.innerWidth;
+      const screenY = ((mercator.y - nwM.y) / spanY) * window.innerHeight;
+      if (i === 0) c.moveTo(screenX, screenY);
+      else c.lineTo(screenX, screenY);
+    });
+    c.closePath();
+    c.fill();
+    c.stroke();
   }
 
-  if (isDragging.value && wasDrag.value && dragStart.value && dragEnd.value) {
-    c.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-    c.lineWidth = 2;
-    c.setLineDash([5, 5]);
+  if (hoveredCell.value && tooltipPosition.value) {
+    const group = findGroupForCell(hoveredCell.value);
+    const label = group?.condition.comment || hoveredCell.value;
+
+    c.font = '12px sans-serif';
+    const textWidth = c.measureText(label).width;
+    const padding = 6;
+    const tooltipWidth = textWidth + padding * 2;
+    const tooltipHeight = 20;
+
+    let tooltipX = tooltipPosition.value.x + 10;
+    let tooltipY = tooltipPosition.value.y - tooltipHeight - 5;
+
+    if (tooltipX + tooltipWidth > window.innerWidth) {
+      tooltipX = tooltipPosition.value.x - tooltipWidth - 10;
+    }
+    if (tooltipY < 0) {
+      tooltipY = tooltipPosition.value.y + 10;
+    }
+
+    c.fillStyle = 'rgba(0, 0, 0, 0.85)';
     c.beginPath();
-    c.rect(
-      dragStart.value.x,
-      dragStart.value.y,
-      dragEnd.value.x - dragStart.value.x,
-      dragEnd.value.y - dragStart.value.y
-    );
-    c.stroke();
-    c.setLineDash([]);
+    c.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 4);
+    c.fill();
+
+    c.fillStyle = 'white';
+    c.fillText(label, tooltipX + padding, tooltipY + 14);
   }
 };
 
-// ─── Lifecycle ───────────────────────────────────────────────────────────────
-
+/** Resize the canvas to fill the viewport and redraw. */
 const resize = () => {
   if (!canvas.value) return;
   canvas.value.width = window.innerWidth;
@@ -250,15 +306,12 @@ onMounted(() => {
   updateSelectedCellsSet();
   resize();
   window.addEventListener('resize', resize);
-  window.addEventListener('keydown', handleKeyDown);
-  // non-passive so preventDefault() can suppress the page from scrolling
   canvas.value!.addEventListener('wheel', handleWheel, { passive: false });
 });
 
 onUnmounted(() => {
   props.map?.off('move', draw);
   window.removeEventListener('resize', resize);
-  window.removeEventListener('keydown', handleKeyDown);
   canvas.value?.removeEventListener('wheel', handleWheel);
 });
 </script>
@@ -282,6 +335,10 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   pointer-events: auto;
-  cursor: crosshair;
+  cursor: grab;
+}
+
+.tile-select-overlay:active {
+  cursor: grabbing;
 }
 </style>

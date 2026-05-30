@@ -1,20 +1,37 @@
+/**
+ * Composable for managing trail map state, visibility, and data fetching.
+ * Handles explored cells tracking, POI type fetching, and viewport-based cell filtering.
+ */
+
 import { ref, onUnmounted } from "vue";
-import * as h3 from "h3-js";
+import { cellsFromBounds, cellToToken } from "@/utils/s2Utils";
 import { fetchCellTypes as fetchCellTypesFromService } from "@/services/poiService";
 import { getCellTypeFromCache } from "@/services/cacheService";
 import { fetchExploredTiles } from "@/services/trailsService";
-import type { Map as MaplibreMap } from "maplibre-gl";
 
+/**
+ * Valid POI cell type categories displayed on the map.
+ */
 export type CellTypeKey = "peak" | "natural" | "industrial";
 
+/**
+ * Interface for map viewport bounds.
+ * Abstracts map library specifics from the composable.
+ */
 export interface MapBounds {
     getSouthWest: () => { lat: number; lng: number };
     getNorthEast: () => { lat: number; lng: number };
 }
 
-const H3_RESOLUTION = 10;
 const DEBOUNCE_DELAY = 500;
 
+/**
+ * Manages trail map state including explored cells, visible cells, and POI data.
+ * Provides debounced updates for map move/zoom events and integrates with
+ * the trails, poi, and cache services.
+ *
+ * @returns Reactive state and actions for trail map management
+ */
 export function useTrailMap() {
     const visitedCells = ref<Set<string>>(new Set());
     const visibleCells = ref<string[]>([]);
@@ -44,28 +61,12 @@ export function useTrailMap() {
     };
 
     /**
-     * Compute all H3 cells visible within the given map bounds.
-     */
-    const computeCellsFromBounds = (bounds: MapBounds): string[] => {
-        const sw = bounds.getSouthWest();
-        const ne = bounds.getNorthEast();
-
-        const polygon: [number, number][] = [
-            [sw.lat, sw.lng],
-            [ne.lat, sw.lng],
-            [ne.lat, ne.lng],
-            [sw.lat, ne.lng],
-            [sw.lat, sw.lng],
-        ];
-
-        return h3.polygonToCells(polygon, H3_RESOLUTION);
-    };
-
-    /**
      * Split visible cells into explored and fog lists based on visitedCells.
      */
     const updateVisibleCells = (bounds: MapBounds): void => {
-        const cells = computeCellsFromBounds(bounds);
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        const cells = cellsFromBounds(sw, ne).map(cellToToken);
         visibleCells.value = cells;
 
         const explored: string[] = [];
@@ -142,7 +143,6 @@ export function useTrailMap() {
 
         // Actions
         loadExploredTiles,
-        computeCellsFromBounds,
         updateVisibleCells,
         debouncedUpdate,
         fetchCellTypes,

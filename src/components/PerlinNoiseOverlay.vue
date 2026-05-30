@@ -1,19 +1,19 @@
 <!--
   Perlin Noise Overlay
-  
+
   This draws a cloudy pattern on the map that stays stuck to the ground.
   When you move the map, the pattern moves with it - like it's painted on the Earth!
-  
+
   Filter Tiles Feature:
-  - When enabled, H3 cells with max noise > threshold are drawn in red
+  - When enabled, S2 cells with max noise > threshold are drawn in red
   - Other cells show no noise at all
   - Shows a counter of active cells
 -->
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import * as h3 from 'h3-js';
 import maplibregl from 'maplibre-gl';
 import type { Map as MaplibreMap } from 'maplibre-gl';
+import { cellsFromBounds, cellToToken, cellToVertices, tokenToCell } from '@/utils/s2Utils';
 import { fetchNoiseForCells } from '../services/noiseService';
 
 interface Props {
@@ -29,7 +29,7 @@ const props = withDefaults(defineProps<Props>(), {
   scale: 50,
   threshold: 0.5,
   octaves: 3,
-  amplitudeDecay: 0.5
+  amplitudeDecay: 0.5,
 });
 
 // Tell the parent component how many active cells we have
@@ -41,10 +41,10 @@ const emit = defineEmits<{
 const canvas = ref<HTMLCanvasElement | null>(null);
 const ctx = ref<CanvasRenderingContext2D | null>(null);
 
-// Track which H3 cells are active (noise > threshold)
+// Track which S2 cells are active (noise > threshold)
 const activeCells = ref<Set<string>>(new Set());
 
-// This figures out which H3 cells are visible on the map right now
+// This figures out which S2 cells are visible on the map right now
 // and which ones have noise > threshold (active cells)
 const updateActiveCells = async () => {
   if (!props.map) return;
@@ -55,32 +55,34 @@ const updateActiveCells = async () => {
   const ne = bounds.getNorthEast();
   
   // Make a rectangle polygon from the bounds
-  const polygon: [number, number][] = [
-    [sw.lat, sw.lng],
-    [ne.lat, sw.lng],
-    [ne.lat, ne.lng],
-    [sw.lat, ne.lng],
-    [sw.lat, sw.lng],
-  ];
-  
-  // Get all H3 cells in this area (resolution 10 = small cells)
-  const cells = h3.polygonToCells(polygon, 10);
-  
+  const cellIds = cellsFromBounds(
+    { lat: sw.lat, lng: sw.lng },
+    { lat: ne.lat, lng: ne.lng },
+  );
+
+  // Get all S2 cells in this area
+  const tokens = cellIds.map(cellToToken);
+
   // Fetch noise values from API
-  const noiseMap = await fetchNoiseForCells(cells, props.scale, props.octaves, props.amplitudeDecay);
-  
+  const noiseMap = await fetchNoiseForCells(
+    tokens,
+    props.scale,
+    props.octaves,
+    props.amplitudeDecay,
+  );
+
   // Find which cells are active (noise > threshold)
   const newActiveCells = new Set<string>();
-  
+
   for (const [cell, noise] of noiseMap.entries()) {
     if (noise > props.threshold) {
       newActiveCells.add(cell);
     }
   }
-  
+
   // Save the active cells
   activeCells.value = newActiveCells;
-  
+
   // Tell the parent how many active cells we have
   emit('activeCellsChange', newActiveCells.size);
 };
@@ -89,11 +91,11 @@ const RES = 0.25;
 
 const draw = () => {
   if (!ctx.value || !canvas.value || !props.map) return;
-  
+
   const m = props.map;
   const { width, height } = canvas.value;
   const c = ctx.value;
-  
+
   c.clearRect(0, 0, width, height);
 
   updateActiveCells().catch(console.warn);
@@ -102,10 +104,10 @@ const draw = () => {
 
   const nw = m.unproject([0, 0]);
   const se = m.unproject([window.innerWidth, window.innerHeight]);
-  
+
   const nwM = maplibregl.MercatorCoordinate.fromLngLat(nw);
   const seM = maplibregl.MercatorCoordinate.fromLngLat(se);
-  
+
   const spanX = seM.x - nwM.x;
   const spanY = seM.y - nwM.y;
 
@@ -113,18 +115,22 @@ const draw = () => {
   c.lineWidth = 2;
   c.beginPath();
 
-  for (const cell of activeCells.value) {
-    const boundary = h3.cellToBoundary(cell);
-    if (!boundary) continue;
+  for (const token of activeCells.value) {
+    let vertices: Array<{ lat: number; lng: number }>;
+    try {
+      vertices = cellToVertices(tokenToCell(token));
+    } catch {
+      continue;
+    }
 
     let firstPoint = true;
-    
-    for (const [lat, lng] of boundary) {
+
+    for (const { lat, lng } of vertices) {
       const mercator = maplibregl.MercatorCoordinate.fromLngLat({ lng, lat });
-      
+ 
       const screenX = ((mercator.x - nwM.x) / spanX) * width;
       const screenY = ((mercator.y - nwM.y) / spanY) * height;
-      
+ 
       if (firstPoint) {
         c.moveTo(screenX, screenY);
         firstPoint = false;
@@ -132,10 +138,10 @@ const draw = () => {
         c.lineTo(screenX, screenY);
       }
     }
-    
+ 
     c.closePath();
   }
-  
+
   c.stroke();
 };
 
@@ -150,9 +156,9 @@ const resize = () => {
 // When the map changes, start listening to its moves and draw
 watch(() => props.map, (m, old) => {
   if (old) old.off('move', draw);
-  if (m) { 
-    m.on('move', draw); 
-    draw(); 
+  if (m) {
+    m.on('move', draw);
+    draw();
   }
 }, { immediate: true });
 

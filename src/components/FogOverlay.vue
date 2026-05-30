@@ -6,15 +6,28 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * Fog overlay component for rendering unexplored map areas.
+ * Uses S2 cell tokens to determine which regions are unexplored and displays
+ * them with a configurable fog effect.
+ */
+
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import * as h3 from 'h3-js';
+import { tokenToCell, cellToVertices } from '@/utils/s2Utils';
 import { hexToRgba } from '@/utils/color';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 
+/**
+ * Props for the FogOverlay component.
+ */
 interface Props {
+  /** Maplibre map instance for coordinate projection */
   map?: MaplibreMap;
+  /** Array of S2 cell tokens representing explored areas (these areas will be clear) */
   exploredCells?: string[];
+  /** Opacity of the fog overlay (0-1) */
   opacity?: number;
+  /** Base color of the fog overlay as hex string */
   color?: string;
 }
 
@@ -22,7 +35,7 @@ const props = withDefaults(defineProps<Props>(), {
   map: undefined,
   exploredCells: () => [],
   opacity: 0.85,
-  color: '#1a1a1a'
+  color: '#1a1a1a',
 });
 
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -35,26 +48,30 @@ const resizeCanvas = () => {
   canvas.value.height = window.innerHeight;
 };
 
-const drawH3Cell = (c: CanvasRenderingContext2D, h3Index: string, fill: boolean = false) => {
+const drawS2Cell = (c: CanvasRenderingContext2D, token: string, fill: boolean = false) => {
   if (!props.map || typeof props.map.project !== 'function') return;
-  
-  const boundary = h3.cellToBoundary(h3Index);
-  if (boundary.length === 0) return;
-  
+
+  let vertices: Array<{ lat: number; lng: number }>;
+  try {
+    vertices = cellToVertices(tokenToCell(token));
+  } catch (err) {
+    console.warn(`[FogOverlay] Invalid S2 cell token: ${token}`, err);
+    return;
+  }
+
   c.beginPath();
-  
-  boundary.forEach((coord: number[], i: number) => {
-    const point = props.map!.project([coord[1], coord[0]]);
-    
+
+  for (let i = 0; i < vertices.length; i++) {
+    const point = props.map!.project([vertices[i].lng, vertices[i].lat]);
     if (i === 0) {
       c.moveTo(point.x, point.y);
     } else {
       c.lineTo(point.x, point.y);
     }
-  });
-  
+  }
+
   c.closePath();
-  
+
   if (fill) {
     c.fillStyle = 'rgba(0, 0, 0, 1)';
     c.fill();
@@ -75,9 +92,9 @@ const draw = () => {
   c.fillRect(0, 0, width, height);
 
   c.globalCompositeOperation = 'destination-out';
-  
-  props.exploredCells.forEach(cell => {
-    drawH3Cell(c, cell, true);
+
+  props.exploredCells.forEach((cell) => {
+    drawS2Cell(c, cell, true);
   });
 
   c.restore();
