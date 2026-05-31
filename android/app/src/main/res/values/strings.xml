@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Kishin Trails</string>
+    <string name="title_activity_main">Kishin Trails</string>
+    <string name="package_name">io.kishintrails.app</string>
+    <string name="custom_url_scheme">io.kishintrails.app</string>
+</resources>
