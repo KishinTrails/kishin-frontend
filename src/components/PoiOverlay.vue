@@ -6,22 +6,30 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * POI overlay component that renders point-of-interest icons on explored S2 cells.
+ *
+ * Draws directly onto a canvas positioned above the map, using Mercator
+ * coordinate projection to keep icons aligned with the map as the user pans
+ * or zooms. Icons are type-specific images (peak / natural / industrial) sized
+ * dynamically based on the current zoom level.
+ */
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { tokenToCell, cellToVertices, isValidToken } from '@/utils/s2Utils';
 import type { Map as MaplibreMap } from 'maplibre-gl';
 
 /**
  * Valid POI cell type categories.
- * Matches the types defined in useTrailMap.ts
+ * Matches the types defined in useTrailMap.ts.
  */
 type CellTypeKey = 'peak' | 'natural' | 'industrial';
 
 interface Props {
-  /** Maplibre map instance */
+  /** MapLibre GL map instance used for coordinate projection. */
   map?: MaplibreMap;
-  /** Map of S2 tokens to their specific POI type */
+  /** Map from S2 cell token to its POI type. */
   cellTypes: Map<string, CellTypeKey>;
-  /** List of currently visible S2 cell tokens */
+  /** S2 cell tokens that are currently within the viewport. */
   visibleCells: string[];
 }
 
@@ -37,6 +45,7 @@ const typeImages: Record<CellTypeKey, HTMLImageElement | null> = {
   industrial: null
 };
 
+/** Resize the backing canvas to fill the current viewport. */
 const resizeCanvas = () => {
   if (!canvas.value) return;
   canvas.value.width = window.innerWidth;
@@ -92,6 +101,12 @@ const resizeCanvas = () => {
   c.drawImage(img, point.x - imgSize / 2, point.y - imgSize / 2, imgSize, imgSize);
 };
 
+/**
+ * Render one frame of the POI overlay.
+ *
+ * Clears the canvas and redraws an icon for every visible cell that has a
+ * known POI type. Cells without a type in `cellTypes` are skipped silently.
+ */
 const draw = () => {
   if (!ctx.value || !canvas.value || !props.map) return;
 
@@ -106,12 +121,27 @@ const draw = () => {
   }
 };
 
+/**
+ * Create an `HTMLImageElement` and begin loading the given source URL.
+ *
+ * The element is stored in `typeImages` so subsequent draw calls can use it
+ * once the browser has decoded the image asynchronously.
+ *
+ * @param src - URL of the icon image to load.
+ * @returns   The (potentially still loading) image element.
+ */
 const loadImage = (src: string): HTMLImageElement => {
   const img = new Image();
   img.src = src;
   return img;
 };
 
+/**
+ * Start the `requestAnimationFrame` render loop.
+ *
+ * Keeps icons aligned with the map during pans and zooms without requiring
+ * explicit map event subscriptions.
+ */
 const animate = () => {
   draw();
   animationFrame.value = requestAnimationFrame(animate);
