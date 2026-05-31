@@ -7,7 +7,6 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.os.Looper
-import android.os.PowerManager
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
@@ -34,7 +33,6 @@ class TrailTrackerService : Service() {
     private lateinit var fusedClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private lateinit var okHttp: OkHttpClient
-    private lateinit var wakeLock: PowerManager.WakeLock
 
     private var token = ""
     private var apiBase = ""
@@ -43,24 +41,6 @@ class TrailTrackerService : Service() {
 
     private val jsIntervalMs  =  2_000L   // how often the Vue layer receives a position update
     private val apiIntervalMs = 20_000L   // how often we POST to the remote API
-
-    /**
-     * Wake lock duration per acquisition.
-     *
-     * Acquired for 35 min at a time and renewed periodically so the service
-     * can run continuously for 2 h+ without holding an indefinite lock,
-     * which Play Store flags as a battery issue.
-     */
-    private val wakeLockDurationMs = 35 * 60 * 1_000L
-    private val wakeLockRenewIntervalMs = 30 * 60 * 1_000L
-
-    private val handler = android.os.Handler(Looper.getMainLooper())
-    private val renewWakeLockRunnable = object : Runnable {
-        override fun run() {
-            renewWakeLock()
-            handler.postDelayed(this, wakeLockRenewIntervalMs)
-        }
-    }
 
     // -------------------------------------------------------------------------
     // Lifecycle
@@ -103,9 +83,6 @@ class TrailTrackerService : Service() {
         apiBase = intent?.getStringExtra("apiBase") ?: ""
 
         startForeground(NOTIFICATION_ID, buildNotification())
-        acquireWakeLock()
-        // Schedule periodic wake-lock renewal so we can run for 2 h+
-        handler.postDelayed(renewWakeLockRunnable, wakeLockRenewIntervalMs)
         startLocationUpdates()
 
         // START_STICKY ensures Android restarts the service if it is killed,
@@ -114,9 +91,7 @@ class TrailTrackerService : Service() {
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(renewWakeLockRunnable)
         fusedClient.removeLocationUpdates(locationCallback)
-        releaseWakeLock()
         super.onDestroy()
     }
 
@@ -174,40 +149,6 @@ class TrailTrackerService : Service() {
     }
 
     // -------------------------------------------------------------------------
-    // Wake lock
-    // -------------------------------------------------------------------------
-
-    /**
-     * Acquire a timed partial wake lock.
-     *
-     * PARTIAL_WAKE_LOCK keeps the CPU running while the screen is off, which
-     * is exactly what we need for background GPS + HTTP.  We use a timed
-     * acquisition (not indefinite) to satisfy Play Store policy, and renew
-     * it periodically via [renewWakeLockRunnable].
-     */
-    private fun acquireWakeLock() {
-        val pm = getSystemService(POWER_SERVICE) as PowerManager
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-        wakeLock.acquire(wakeLockDurationMs)
-        Log.d(TAG, "Wake lock acquired for ${wakeLockDurationMs / 60_000} min")
-    }
-
-    private fun renewWakeLock() {
-        if (::wakeLock.isInitialized) {
-            if (wakeLock.isHeld) wakeLock.release()
-            wakeLock.acquire(wakeLockDurationMs)
-            Log.d(TAG, "Wake lock renewed")
-        }
-    }
-
-    private fun releaseWakeLock() {
-        if (::wakeLock.isInitialized && wakeLock.isHeld) {
-            wakeLock.release()
-            Log.d(TAG, "Wake lock released")
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Notification
     // -------------------------------------------------------------------------
 
@@ -236,9 +177,8 @@ class TrailTrackerService : Service() {
     // -------------------------------------------------------------------------
 
     companion object {
-        private const val TAG            = "TrailTrackerService"
-        private const val CHANNEL_ID     = "trail_tracker"
+        private const val TAG             = "TrailTrackerService"
+        private const val CHANNEL_ID      = "trail_tracker"
         private const val NOTIFICATION_ID = 1
-        private const val WAKE_LOCK_TAG  = "TrailTracker::WakeLock"
     }
 }
