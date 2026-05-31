@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { s2 } from "s2js";
-import { S2_LEVEL, cellsFromBounds, cellToVertices, cellToToken, tokenToCell, cellFromLatLng } from "./s2Utils";
+import { S2_LEVEL, cellsFromBounds, cellToVertices, cellToToken, tokenToCell, cellFromLatLng, isCellInBounds } from "./s2Utils";
 
 // Shared fixture — small area, used across most tests
 const FIX_SW = { lat: 46.53197, lng: 7.95179 };
@@ -330,6 +330,62 @@ describe("s2Utils", () => {
             );
 
             expect(cells).toContain(cellId);
+        });
+    });
+
+    // ── isCellInBounds ───────────────────────────────────────────────────────
+
+    describe("isCellInBounds", () => {
+        it("returns true when the cell is fully inside the bounds", () => {
+            // Use the midpoint of the fixture bounds so all vertices stay inside
+            const midLat = (FIX_SW.lat + FIX_NE.lat) / 2;
+            const midLng = (FIX_SW.lng + FIX_NE.lng) / 2;
+            const token = cellToToken(cellFromLatLng(midLat, midLng));
+
+            expect(isCellInBounds(token, FIX_SW, FIX_NE)).toBe(true);
+        });
+
+        it("returns false when the cell is fully outside the bounds", () => {
+            // New York cell is far outside the Swiss Alps bounds
+            const token = cellToToken(cellFromLatLng(FIX_WH_SW.lat, FIX_WH_SW.lng));
+
+            expect(isCellInBounds(token, FIX_SW, FIX_NE)).toBe(false);
+        });
+
+        it("returns true when only one vertex is inside the bounds (straddle case)", () => {
+            const cellId = cellFromLatLng(FIX_POINT.lat, FIX_POINT.lng);
+            const token = cellToToken(cellId);
+            const vertices = cellToVertices(cellId);
+
+            // Build bounds that contain exactly the first vertex but not the others
+            const v = vertices[0];
+            const tinyMargin = 0.00005;
+            const tightBounds = {
+                sw: { lat: v.lat - tinyMargin, lng: v.lng - tinyMargin },
+                ne: { lat: v.lat + tinyMargin, lng: v.lng + tinyMargin },
+            };
+
+            expect(isCellInBounds(token, tightBounds.sw, tightBounds.ne)).toBe(true);
+        });
+
+        it("returns false when bounds contain only the cell center (regression: old center-based logic)", () => {
+            const cellId = cellFromLatLng(FIX_POINT.lat, FIX_POINT.lng);
+            const token = cellToToken(cellId);
+            const vertices = cellToVertices(cellId);
+
+            // Bounds tight around the center but smaller than the cell — excludes all vertices
+            const lats = vertices.map((v) => v.lat);
+            const lngs = vertices.map((v) => v.lng);
+            const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+            const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+            const halfSpan = Math.abs(lats[0] - centerLat) * 0.4; // less than half-cell width
+
+            const centerOnlyBounds = {
+                sw: { lat: centerLat - halfSpan, lng: centerLng - halfSpan },
+                ne: { lat: centerLat + halfSpan, lng: centerLng + halfSpan },
+            };
+
+            expect(isCellInBounds(token, centerOnlyBounds.sw, centerOnlyBounds.ne)).toBe(false);
         });
     });
 
