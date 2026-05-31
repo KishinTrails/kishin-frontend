@@ -118,24 +118,22 @@ export function isValidToken(token: string): boolean {
 }
 
 /**
- * Return whether the center of the S2 cell identified by `token` falls
+ * Return whether any corner vertex of the S2 cell identified by `token` falls
  * within the given lat/lng bounding box.
  *
- * The center-point test is an approximation: cells that straddle the
- * bounding box edge may be included or excluded. For viewport culling
- * this is acceptable because the caller renders all visible cells anyway.
+ * Using vertices instead of the center ensures that cells straddling the
+ * viewport edge are kept visible as long as any part of them is on screen.
  *
  * @param token - Hex token of the cell to test.
  * @param sw    - South-west corner of the bounding box (degrees).
  * @param ne    - North-east corner of the bounding box (degrees).
- * @returns     `true` if the cell center lies inside the bounding box.
+ * @returns     `true` if at least one corner vertex lies inside the bounding box.
  */
 export function isCellInBounds(token: string, sw: { lat: number; lng: number }, ne: { lat: number; lng: number }): boolean {
     const cellId = tokenToCell(token);
-    const latLng = s2.LatLng.fromPoint(s2.Cell.fromCellID(cellId).center());
-    const lat = s1.angle.degrees(latLng.lat);
-    const lng = s1.angle.degrees(latLng.lng);
-    return lat >= sw.lat && lat <= ne.lat && lng >= sw.lng && lng <= ne.lng;
+    return cellToVertices(cellId).some(({ lat, lng }) =>
+        lat >= sw.lat && lat <= ne.lat && lng >= sw.lng && lng <= ne.lng
+    );
 }
 
 /**
