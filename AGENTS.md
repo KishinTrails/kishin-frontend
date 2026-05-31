@@ -106,6 +106,18 @@ npm install
 - ONLY do exactly what is asked. Do not add features, refactor, or improve code beyond the explicit request.
 - When asked to create a component, only create that component. Do not add subcomponents, routes, or related functionality unless explicitly requested.
 - Do not modify other files unless explicitly instructed.
-- Do not add comments, documentation, or explanations unless asked.
 - Do not replace or refactor existing code unless explicitly told to do so.
 - Never remove existing comments from files unless explicitly told to do so.
+
+## Documentation Standards
+Every function, method, class, and exported interface must have a professional-level docstring. This applies to TypeScript (TSDoc `/** */` blocks), Vue `<script setup>` (JSDoc above the function), and Kotlin (KDoc `/** */` blocks).
+
+Required elements for each docstring:
+- A concise summary line describing **what** the function does and **why** it exists (not just a restatement of the name).
+- `@param` tags for every non-obvious parameter.
+- `@returns` tag when the return value carries semantic meaning beyond the type.
+- Note any important side effects, preconditions, or failure modes.
+
+File-level docblocks are required for all service, composable, utility, and plugin files. They must describe the module's responsibility and what it explicitly does **not** own (to document boundaries between modules).
+
+Inline comments are permitted only for non-obvious logic (e.g. algorithm steps, workarounds, invariants). Do not comment self-explanatory code.

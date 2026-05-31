@@ -59,7 +59,7 @@ Start the development server with hot reload:
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`. The Vite config proxies API requests to `http://localhost:8000` (see `vite.config.ts`).
+The app will be available at `http://localhost:5173`. Configure `VITE_API_BASE` in a `.env` file to point at your local or remote API (e.g. `VITE_API_BASE=http://localhost:8000`).
 
 ### Build for Production
 
@@ -98,6 +98,7 @@ This frontend consumes the [kishin-api](https://github.com/KishinTrails/kishin-a
 ### Trails
 
 - **GET** `/trails/explored` - Get user's explored S2 cells (protected)
+- **POST** `/trails/explored` - Log a newly explored S2 cell (protected)
 
 ### POI (Points of Interest)
 
@@ -172,10 +173,10 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push and pull
 
 ## Environment Variables
 
-Configure via `vite.config.ts` proxy settings or environment variables:
+Configure via a `.env` file in the project root:
 
-- API base URL: Configured in service modules (proxied to `http://localhost:8000` in dev)
-- Base URL: Set via `BASE_URL` environment variable
+- `VITE_API_BASE` — Base URL of the kishin-api backend (e.g. `http://localhost:8000`)
+- `BASE_URL` — App base path, used by the router in production deployments
 
 ## 🧪 Quality and Testing
 

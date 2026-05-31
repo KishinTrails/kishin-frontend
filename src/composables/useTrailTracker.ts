@@ -67,6 +67,10 @@ export function useTrailTracker() {
         });
     }
 
+    /**
+     * Remove the active "position" event listener and clear the stored handle.
+     * Safe to call when no listener is attached.
+     */
     function detachPositionListener(): void {
         positionListenerHandle?.remove();
         positionListenerHandle = null;
@@ -137,12 +141,14 @@ export function useTrailTracker() {
     // Derived state
     // -----------------------------------------------------------------------
 
+    /** Human-readable status string for display in the GPS tracker UI. */
     const statusLabel = computed<string>(() => {
         if (isTracking.value) return "Tracking";
         if (lastPosition.value) return "Idle";
         return "Stopped";
     });
 
+    /** CSS class name for the coloured status dot in the GPS tracker UI. */
     const statusClass = computed<string>(() => {
         if (isTracking.value) return "dot-active";
         if (lastPosition.value) return "dot-idle";

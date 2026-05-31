@@ -47,6 +47,11 @@ class TrailTrackerPlugin : Plugin() {
         var instance: TrailTrackerPlugin? = null
     }
 
+    /**
+     * Called by the Capacitor bridge immediately after the plugin is instantiated.
+     * Stores a reference to this instance so [TrailTrackerService] can call
+     * [sendPosition] to forward position events to the JS layer.
+     */
     override fun load() {
         instance = this
     }
@@ -98,6 +103,15 @@ class TrailTrackerPlugin : Plugin() {
         launchService(call)
     }
 
+    /**
+     * Called by the Capacitor permission framework after the user responds to
+     * the "Allow all the time" background location prompt.
+     *
+     * If the permission was granted, proceeds to [launchService]. Otherwise
+     * rejects the original JS call so the caller can surface an error to the user.
+     *
+     * @param call The original [PluginCall] from [start] that triggered the permission request.
+     */
     @PermissionCallback
     fun backgroundLocationCallback(call: PluginCall) {
         val granted = ContextCompat.checkSelfPermission(
@@ -129,6 +143,15 @@ class TrailTrackerPlugin : Plugin() {
     // Internal helpers
     // -------------------------------------------------------------------------
 
+    /**
+     * Build and dispatch a foreground service intent for [TrailTrackerService].
+     *
+     * Extracts `token` and `apiBase` from the JS call options and forwards them
+     * as intent extras so the service can authenticate API requests without
+     * holding a reference to the plugin.
+     *
+     * @param call The resolved [PluginCall] containing `token` and `apiBase`.
+     */
     private fun launchService(call: PluginCall) {
         val intent = Intent(context, TrailTrackerService::class.java).apply {
             putExtra("token",   call.getString("token")   ?: "")
@@ -138,6 +161,12 @@ class TrailTrackerPlugin : Plugin() {
         call.resolve()
     }
 
+    /**
+     * Clear the static [instance] reference when the plugin is destroyed.
+     *
+     * Prevents [TrailTrackerService] from holding a stale reference to a
+     * destroyed plugin instance and leaking the Activity context.
+     */
     override fun handleOnDestroy() {
         instance = null
         super.handleOnDestroy()

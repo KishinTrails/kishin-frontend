@@ -91,7 +91,6 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
                 continue;
             }
             const data: PoiByCellsResponse = await response.json();
-            console.log(data);
             const cellsWithData = new Set<string>();
             for (const cellData of data.cells) {
                 const type = cellData.type;
@@ -142,7 +141,6 @@ export async function fetchCellType(cell: string, signal?: AbortSignal): Promise
     const response = await fetch(`${API_BASE}/bycell?s2Cell=${cell}`, { headers, signal });
     if (!response.ok) {
         return { type: null, cacheHit: false };
-        // throw new Error(`Failed to fetch POI for cell: ${cell}`);
     }
     const data: PoiByCellResponse = await response.json();
     const type = data.type;
