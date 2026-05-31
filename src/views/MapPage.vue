@@ -237,7 +237,7 @@
  * All business logic lives in trailMap().
  */
 
-import { ref, shallowRef, onMounted, onUnmounted } from 'vue';
+import { ref, shallowRef, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
@@ -247,9 +247,11 @@ import PoiOverlay from '@/components/PoiOverlay.vue';
 import PerlinNoiseOverlay from '@/components/PerlinNoiseOverlay.vue';
 import TileSelectOverlay from '@/components/TileSelectOverlay.vue';
 import { useTrailMap } from '@/composables/useTrailMap';
+import { useTrailTracker } from '@/composables/useTrailTracker';
 import { logout } from '@/services/authService';
 import GpsTracker from '@/components/GpsTracker.vue';
 import { randomColor } from '@/utils/color';
+import { cellFromLatLng, cellToToken } from '@/utils/s2Utils';
 import type { PerlinConfig, TileGroup } from '@/types/perlinConfig';
 
 const FOG_OPACITY = 0.85;
@@ -266,6 +268,7 @@ const MAP_ZOOM = 16;
 
 const mapContainer = ref<HTMLElement | null>(null);
 const map = shallowRef<maplibregl.Map | undefined>(undefined);
+const marker = shallowRef<maplibregl.Marker | undefined>(undefined);
 
 const showFog = ref(true);
 const showPoi = ref(true);
@@ -288,7 +291,40 @@ const {
   fetchCellTypes,
 } = useTrailMap();
 
+const { lastPosition } = useTrailTracker();
+
 const router = useRouter();
+
+watch(lastPosition, (pos) => {
+  if (!map.value) return;
+
+  if (!pos) {
+    marker.value?.remove();
+    marker.value = undefined;
+    return;
+  }
+
+  const el = document.createElement('div');
+  el.className = 'location-marker';
+  el.style.width = '20px';
+  el.style.height = '20px';
+  el.style.backgroundColor = '#4285F4';
+  el.style.border = '3px solid white';
+  el.style.borderRadius = '50%';
+  el.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+  el.style.cursor = 'pointer';
+
+  if (marker.value) {
+    marker.value.setLngLat([pos.longitude, pos.latitude]);
+  } else {
+    marker.value = new maplibregl.Marker({ element: el })
+      .setLngLat([pos.longitude, pos.latitude])
+      .addTo(map.value);
+  }
+
+  const cell = cellFromLatLng(pos.latitude, pos.longitude);
+  visitedCells.value.add(cellToToken(cell));
+});
 
 const handleLogout = () => {
   logout();
@@ -304,6 +340,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (resizeListener) window.removeEventListener('resize', resizeListener);
+  marker.value?.remove();
   map.value?.remove();
 });
 
@@ -655,6 +692,15 @@ const clearAllGroupCells = () => {
 
 ion-content {
   --background: transparent;
+}
+
+.location-marker {
+  animation: location-pulse 2s ease-in-out infinite;
+}
+
+@keyframes location-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(66, 133, 244, 0.4), 0 2px 6px rgba(0,0,0,0.3); }
+  50% { box-shadow: 0 0 0 10px rgba(66, 133, 244, 0), 0 2px 6px rgba(0,0,0,0.3); }
 }
 
 @supports (padding: max(0px)) {

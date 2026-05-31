@@ -31,7 +31,25 @@ npm-debug.log*
 /plugins
 /www
 
-android/
+android/*
+!android/build.gradle
+!android/app/
+android/app/*
+!android/app/build.gradle
+!android/app/src/
+android/app/src/*
+!android/app/src/main/
+android/app/src/main/*
+!android/app/src/main/AndroidManifest.xml
+!android/app/src/main/java/
+android/app/src/main/java/*
+!android/app/src/main/java/io/
+android/app/src/main/java/io/*
+!android/app/src/main/java/io/ionic/
+android/app/src/main/java/io/ionic/*
+!android/app/src/main/java/io/ionic/starter/
+android/app/src/main/java/io/ionic/starter/*
+!android/app/src/main/java/io/ionic/starter/*.kt
 
 # User files
 *.jks
