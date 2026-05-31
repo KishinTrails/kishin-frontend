@@ -1,4 +1,4 @@
-package io.ionic.starter
+package io.kishintrails.app
 
 import android.app.Notification
 import android.app.NotificationChannel
