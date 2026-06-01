@@ -89,7 +89,7 @@ describe("FogOverlay", () => {
                 },
             });
 
-            expect(wrapper.props("opacity")).toBe(0.85);
+            expect(wrapper.props("opacity")).toBe(1);
             expect(wrapper.props("color")).toBe("#1a1a1a");
         });
 

@@ -29,13 +29,22 @@ interface Props {
   opacity?: number;
   /** Base color of the fog overlay as hex string */
   color?: string;
+  /** Player position — when set, fog fades from transparent at the player outward */
+  playerPosition?: { lat: number; lng: number };
+  /** Visibility radius in kilometres — converted to pixels at draw time so it stays geographically fixed across zoom levels */
+  fogRadiusKm?: number;
+  /** Rendering mode: 'flat' fills the entire canvas uniformly; 'gradient' fades from the player outward */
+  fogMode?: 'flat' | 'gradient';
 }
 
 const props = withDefaults(defineProps<Props>(), {
   map: undefined,
   exploredCells: () => [],
-  opacity: 0.85,
+  opacity: 1,
   color: '#1a1a1a',
+  playerPosition: undefined,
+  fogRadiusKm: 0.5,
+  fogMode: 'gradient',
 });
 
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -91,11 +100,54 @@ const drawS2Cell = (c: CanvasRenderingContext2D, token: string, fill: boolean = 
 };
 
 /**
+ * Fill the canvas with a uniform flat fog, then punch explored cells.
+ *
+ * @param c      - Canvas 2D rendering context.
+ * @param width  - Canvas width in pixels.
+ * @param height - Canvas height in pixels.
+ */
+const drawFlat = (c: CanvasRenderingContext2D, width: number, height: number) => {
+  c.fillStyle = hexToRgba(props.color, props.opacity * 0.85);
+  c.fillRect(0, 0, width, height);
+};
+
+/**
+ * Fill the canvas with a radial gradient centered on the player (or map center),
+ * fading from transparent at the center to full opacity at `fogRadiusKm`.
+ *
+ * @param c - Canvas 2D rendering context.
+ * @param width  - Canvas width in pixels.
+ * @param height - Canvas height in pixels.
+ */
+const drawGradient = (c: CanvasRenderingContext2D, width: number, height: number) => {
+  if (!props.playerPosition || !props.map) {
+    drawFlat(c, width, height);
+    return;
+  }
+
+  const { x, y } = props.map.project([props.playerPosition.lng, props.playerPosition.lat]);
+
+  // Convert km radius to pixels by projecting a point fogRadiusKm north.
+  // Recomputed every frame so the circle stays geographically fixed across zoom levels.
+  const deltaLat = props.fogRadiusKm / 111.32;
+  const edge = props.map.project([props.playerPosition.lng, props.playerPosition.lat + deltaLat]);
+  const radiusPx = Math.hypot(edge.x - x, edge.y - y);
+
+  const gradient = c.createRadialGradient(x, y, 0, x, y, radiusPx);
+  gradient.addColorStop(0,    hexToRgba(props.color, props.opacity * 0.75));
+  gradient.addColorStop(0.3,  hexToRgba(props.color, props.opacity * 0.85));
+  gradient.addColorStop(0.6,  hexToRgba(props.color, props.opacity * 0.95));
+  gradient.addColorStop(1,    hexToRgba(props.color, props.opacity));
+  c.fillStyle = gradient;
+  c.fillRect(0, 0, width, height);
+};
+
+/**
  * Render one frame of the fog overlay.
  *
- * Fills the entire canvas with the fog colour, then switches to
- * `destination-out` composite mode and punches out each explored cell so
- * those regions appear transparent (revealing the map tiles underneath).
+ * Delegates the fill to `drawFlat` or `drawGradient` based on `fogMode`, then
+ * switches to `destination-out` composite mode and punches out each explored
+ * cell so those regions appear transparent (revealing the map tiles underneath).
  */
 const draw = () => {
   if (!ctx.value || !canvas.value || !props.map) return;
@@ -107,8 +159,11 @@ const draw = () => {
   c.clearRect(0, 0, width, height);
   c.save();
 
-  c.fillStyle = hexToRgba(props.color, props.opacity);
-  c.fillRect(0, 0, width, height);
+  if (props.fogMode === 'gradient') {
+    drawGradient(c, width, height);
+  } else {
+    drawFlat(c, width, height);
+  }
 
   c.globalCompositeOperation = 'destination-out';
 
@@ -131,7 +186,7 @@ const animate = () => {
   animationFrame.value = requestAnimationFrame(animate);
 };
 
-watch(() => [props.exploredCells, props.opacity, props.color, props.map], () => {
+watch(() => [props.exploredCells, props.opacity, props.color, props.map, props.playerPosition, props.fogRadiusKm, props.fogMode], () => {
   draw();
 }, { deep: true });
 
