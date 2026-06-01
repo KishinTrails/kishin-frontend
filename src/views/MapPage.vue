@@ -21,6 +21,9 @@
           :explored-cells="visibleExplored"
           :opacity="FOG_OPACITY"
           :color="FOG_COLOR"
+          :player-position="fogCenter"
+          :fog-radius-km="FOG_RADIUS_KM"
+          :fog-mode="fogMode"
         />
         <PoiOverlay
           v-if="showPoi"
@@ -58,6 +61,27 @@
               >
               <span>Fog Overlay</span>
             </label>
+            <div
+              v-if="showFog && filterByExplored"
+              class="fog-mode-radios"
+            >
+              <label class="toggle-item">
+                <input
+                  v-model="fogMode"
+                  type="radio"
+                  value="flat"
+                >
+                <span>Flat</span>
+              </label>
+              <label class="toggle-item">
+                <input
+                  v-model="fogMode"
+                  type="radio"
+                  value="gradient"
+                >
+                <span>Gradient</span>
+              </label>
+            </div>
             <label class="toggle-item">
               <input
                 v-model="showPoi"
@@ -237,7 +261,7 @@
  * All business logic lives in trailMap().
  */
 
-import { ref, shallowRef, watch, onMounted, onUnmounted } from 'vue';
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
@@ -256,6 +280,7 @@ import type { PerlinConfig, TileGroup } from '@/types/perlinConfig';
 
 const FOG_OPACITY = 0.85;
 const FOG_COLOR = '#1a1a1a';
+const FOG_RADIUS_KM = 5;
 
 const PERLIN_SCALE = ref(200);
 const PERLIN_THRESHOLD = ref(0.75);
@@ -270,7 +295,14 @@ const mapContainer = ref<HTMLElement | null>(null);
 const map = shallowRef<maplibregl.Map | undefined>(undefined);
 const marker = shallowRef<maplibregl.Marker | undefined>(undefined);
 
+const fogCenter = computed(() =>
+  lastPosition.value
+    ? { lat: lastPosition.value.latitude, lng: lastPosition.value.longitude }
+    : { lat: MAP_CENTER[1], lng: MAP_CENTER[0] }
+);
+
 const showFog = ref(true);
+const fogMode = ref<'flat' | 'gradient'>('gradient');
 const showPoi = ref(true);
 const showPerlin = ref(false);
 const showTileSelect = ref(false);
@@ -490,6 +522,10 @@ const clearAllGroupCells = () => {
   margin-bottom: 15px;
   padding-bottom: 15px;
   border-bottom: 1px solid #eee;
+}
+
+.fog-mode-radios {
+  padding-left: 20px;
 }
 
 .toggle-item {
