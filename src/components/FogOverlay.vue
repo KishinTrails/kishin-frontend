@@ -186,9 +186,14 @@ const animate = () => {
   animationFrame.value = requestAnimationFrame(animate);
 };
 
-watch(() => [props.exploredCells, props.opacity, props.color, props.map, props.playerPosition, props.fogRadiusKm, props.fogMode], () => {
-  draw();
-}, { deep: true });
+// Watch scalar props shallowly — no deep traversal needed and safe for all types.
+// props.map is intentionally excluded: deeply watching a MapLibre Map crashes Vue's
+// traversal on the internal Sets it contains. The animate() rAF loop already redraws
+// every frame, so map readiness is handled there without a watcher.
+watch(() => [props.opacity, props.color, props.playerPosition, props.fogRadiusKm, props.fogMode], draw);
+// exploredCells is an array of strings — deep watch is safe and needed to catch
+// element-level additions/removals without a reference change.
+watch(() => props.exploredCells, draw, { deep: true });
 
 onMounted(() => {
   if (!canvas.value) return;
