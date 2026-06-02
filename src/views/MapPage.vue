@@ -45,6 +45,33 @@
         <div class="controls">
           <h3>🗺️ Trail Map</h3>
 
+          <div class="map-style-radios">
+            <label class="toggle-item">
+              <input
+                v-model="mapStyle"
+                type="radio"
+                value="standard"
+              >
+              <span>Standard</span>
+            </label>
+            <label class="toggle-item">
+              <input
+                v-model="mapStyle"
+                type="radio"
+                value="ukiyo-e"
+              >
+              <span>Ukiyo-e</span>
+            </label>
+            <label class="toggle-item">
+              <input
+                v-model="mapStyle"
+                type="radio"
+                value="ukiyo-toner"
+              >
+              <span>Ukiyo Toner</span>
+            </label>
+          </div>
+
           <div class="toggles">
             <label class="toggle-item">
               <input
@@ -266,6 +293,8 @@ import { useRouter } from 'vue-router';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { ukiyoEStyle } from '@/styles/ukiyoE';
+import { ukiyoeTonerStyle, addTonerPatterns } from '@/styles/ukiyoeToner';
 import FogOverlay from '@/components/FogOverlay.vue';
 import PoiOverlay from '@/components/PoiOverlay.vue';
 import PerlinNoiseOverlay from '@/components/PerlinNoiseOverlay.vue';
@@ -278,9 +307,22 @@ import { randomColor } from '@/utils/color';
 import { cellFromLatLng, cellToToken } from '@/utils/s2Utils';
 import type { PerlinConfig, TileGroup } from '@/types/perlinConfig';
 
-const FOG_OPACITY = 0.85;
+const FOG_OPACITY = 1;
 const FOG_COLOR = '#1a1a1a';
-const FOG_RADIUS_KM = 5;
+const FOG_RADIUS_KM = 1.5;
+
+const STANDARD_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 20 }],
+};
 
 const PERLIN_SCALE = ref(200);
 const PERLIN_THRESHOLD = ref(0.75);
@@ -301,8 +343,9 @@ const fogCenter = computed(() =>
     : { lat: MAP_CENTER[1], lng: MAP_CENTER[0] }
 );
 
-const showFog = ref(true);
+const showFog = ref(false);
 const fogMode = ref<'flat' | 'gradient'>('gradient');
+const mapStyle = ref<'standard' | 'ukiyo-e' | 'ukiyo-toner'>('standard');
 const showPoi = ref(true);
 const showPerlin = ref(false);
 const showTileSelect = ref(false);
@@ -358,6 +401,16 @@ watch(lastPosition, (pos) => {
   visitedCells.value.add(cellToToken(cell));
 });
 
+watch(mapStyle, (style) => {
+  if (!map.value) return;
+  const styleMap = {
+    'standard':    STANDARD_STYLE,
+    'ukiyo-e':     ukiyoEStyle,
+    'ukiyo-toner': ukiyoeTonerStyle,
+  };
+  map.value.setStyle(styleMap[style]);
+});
+
 const handleLogout = () => {
   logout();
   router.replace('/login');
@@ -384,26 +437,7 @@ const initMap = (): void => {
 
   map.value = new maplibregl.Map({
     container: mapContainer.value,
-    style: {
-      version: 8,
-      sources: {
-        osm: {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenStreetMap contributors',
-        },
-      },
-      layers: [
-        {
-          id: 'osm',
-          type: 'raster',
-          source: 'osm',
-          minzoom: 0,
-          maxzoom: 20
-        }
-      ],
-    },
+    style: "https://tiles.stadiamaps.com/styles/stamen_toner.json", // STANDARD_STYLE,
     center: MAP_CENTER,
     zoom: MAP_ZOOM,
   });
@@ -414,6 +448,12 @@ const initMap = (): void => {
   map.value.on('load', () => {
     updateVisibleCells(map.value!.getBounds());
     fetchCellTypes();
+  });
+
+  // Add custom pattern images on demand — fires when a layer references an image
+  // not found in the current sprite, guaranteeing MapLibre retries the render.
+  map.value.on('styleimagemissing', (e: { id: string }) => {
+    if (e.id === 'building-stripe') addTonerPatterns(map.value!);
   });
 
   // Debounce updates during pan/zoom to limit API calls
@@ -521,6 +561,14 @@ const clearAllGroupCells = () => {
 .toggles {
   margin-bottom: 15px;
   padding-bottom: 15px;
+  border-bottom: 1px solid #eee;
+}
+
+.map-style-radios {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
   border-bottom: 1px solid #eee;
 }
 
