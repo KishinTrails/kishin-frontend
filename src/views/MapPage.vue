@@ -307,9 +307,9 @@ import { randomColor } from '@/utils/color';
 import { cellFromLatLng, cellToToken } from '@/utils/s2Utils';
 import type { PerlinConfig, TileGroup } from '@/types/perlinConfig';
 
-const FOG_OPACITY = 1;
+const FOG_OPACITY = 0.90;
 const FOG_COLOR = '#1a1a1a';
-const FOG_RADIUS_KM = 1.5;
+const FOG_RADIUS_KM = 1.25;
 
 const STANDARD_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -343,8 +343,8 @@ const fogCenter = computed(() =>
     : { lat: MAP_CENTER[1], lng: MAP_CENTER[0] }
 );
 
-const showFog = ref(false);
-const fogMode = ref<'flat' | 'gradient'>('gradient');
+const showFog = ref(true);
+const fogMode = ref<'flat' | 'gradient'>('flat');
 const mapStyle = ref<'standard' | 'ukiyo-e' | 'ukiyo-toner'>('standard');
 const showPoi = ref(true);
 const showPerlin = ref(false);
@@ -437,7 +437,7 @@ const initMap = (): void => {
 
   map.value = new maplibregl.Map({
     container: mapContainer.value,
-    style: "https://tiles.stadiamaps.com/styles/stamen_toner.json", // STANDARD_STYLE,
+    style: STANDARD_STYLE,
     center: MAP_CENTER,
     zoom: MAP_ZOOM,
   });

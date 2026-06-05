@@ -51,11 +51,11 @@ const canvas = ref<HTMLCanvasElement | null>(null);
 const ctx = ref<CanvasRenderingContext2D | null>(null);
 const animationFrame = ref<number | null>(null);
 
-/** Resize the backing canvas to match the current viewport. Called on mount and window resize. */
+/** Resize the backing canvas to match its CSS-rendered size exactly. */
 const resizeCanvas = () => {
   if (!canvas.value) return;
-  canvas.value.width = window.innerWidth;
-  canvas.value.height = window.innerHeight;
+  canvas.value.width = canvas.value.clientWidth;
+  canvas.value.height = canvas.value.clientHeight;
 };
 
 /**
@@ -107,7 +107,7 @@ const drawS2Cell = (c: CanvasRenderingContext2D, token: string, fill: boolean = 
  * @param height - Canvas height in pixels.
  */
 const drawFlat = (c: CanvasRenderingContext2D, width: number, height: number) => {
-  c.fillStyle = hexToRgba(props.color, props.opacity * 0.85);
+  c.fillStyle = hexToRgba(props.color, props.opacity);
   c.fillRect(0, 0, width, height);
 };
 
@@ -134,10 +134,10 @@ const drawGradient = (c: CanvasRenderingContext2D, width: number, height: number
   const radiusPx = Math.hypot(edge.x - x, edge.y - y);
 
   const gradient = c.createRadialGradient(x, y, 0, x, y, radiusPx);
-  gradient.addColorStop(0,    hexToRgba(props.color, props.opacity * 0.75));
-  gradient.addColorStop(0.3,  hexToRgba(props.color, props.opacity * 0.85));
-  gradient.addColorStop(0.6,  hexToRgba(props.color, props.opacity * 0.95));
-  gradient.addColorStop(1,    hexToRgba(props.color, props.opacity));
+  gradient.addColorStop(0,    hexToRgba(props.color, props.opacity * 0.85));
+  gradient.addColorStop(0.3,  hexToRgba(props.color, props.opacity * 1));
+  gradient.addColorStop(0.6,  hexToRgba(props.color, props.opacity * 1.05));
+  gradient.addColorStop(1,    hexToRgba(props.color, 1));
   c.fillStyle = gradient;
   c.fillRect(0, 0, width, height);
 };
@@ -194,6 +194,9 @@ watch(() => [props.opacity, props.color, props.playerPosition, props.fogRadiusKm
 // exploredCells is an array of strings — deep watch is safe and needed to catch
 // element-level additions/removals without a reference change.
 watch(() => props.exploredCells, draw, { deep: true });
+// When the map becomes available, re-run resizeCanvas: if FogOverlay mounted before
+// initMap() completed, clientWidth/clientHeight may have been 0 at mount time.
+watch(() => props.map, (map) => { if (map) resizeCanvas(); });
 
 onMounted(() => {
   if (!canvas.value) return;

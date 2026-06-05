@@ -51,15 +51,10 @@ describe("FogOverlay", () => {
 
         vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
 
-        Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
-            configurable: true,
-            value: 800,
-        });
-
-        Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
-            configurable: true,
-            value: 600,
-        });
+        Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 800 });
+        Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
+        Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 1920 });
+        Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 1080 });
     });
 
     afterEach(() => {
@@ -146,23 +141,9 @@ describe("FogOverlay", () => {
             expect(getContextSpy).toHaveBeenCalledWith("2d");
         });
 
-        it("resizes canvas to window dimensions on mount", async () => {
-            Object.defineProperty(window, "innerWidth", {
-                writable: true,
-                configurable: true,
-                value: 1920,
-            });
-            Object.defineProperty(window, "innerHeight", {
-                writable: true,
-                configurable: true,
-                value: 1080,
-            });
-
+        it("resizes canvas to client dimensions on mount", async () => {
             wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
+                props: { map: mockMap, exploredCells: [] },
             });
 
             await wrapper.vm.$nextTick();
@@ -249,24 +230,8 @@ describe("FogOverlay", () => {
         });
 
         it("fills canvas with background color", async () => {
-            Object.defineProperty(window, "innerWidth", {
-                writable: true,
-                configurable: true,
-                value: 1920,
-            });
-            Object.defineProperty(window, "innerHeight", {
-                writable: true,
-                configurable: true,
-                value: 1080,
-            });
-
             wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                    color: "#1a1a1a",
-                    opacity: 0.85,
-                },
+                props: { map: mockMap, exploredCells: [], color: "#1a1a1a", opacity: 0.85 },
             });
 
             await wrapper.vm.$nextTick();
@@ -546,22 +511,8 @@ describe("FogOverlay", () => {
 
     describe("Resize Handling", () => {
         it("updates canvas dimensions on window resize", async () => {
-            Object.defineProperty(window, "innerWidth", {
-                writable: true,
-                configurable: true,
-                value: 1920,
-            });
-            Object.defineProperty(window, "innerHeight", {
-                writable: true,
-                configurable: true,
-                value: 1080,
-            });
-
             wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
+                props: { map: mockMap, exploredCells: [] },
             });
 
             await wrapper.vm.$nextTick();
@@ -570,16 +521,8 @@ describe("FogOverlay", () => {
             expect(canvasElement.width).toBe(1920);
             expect(canvasElement.height).toBe(1080);
 
-            Object.defineProperty(window, "innerWidth", {
-                writable: true,
-                configurable: true,
-                value: 1280,
-            });
-            Object.defineProperty(window, "innerHeight", {
-                writable: true,
-                configurable: true,
-                value: 720,
-            });
+            Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 1280 });
+            Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 720 });
 
             window.dispatchEvent(new Event("resize"));
             await wrapper.vm.$nextTick();
