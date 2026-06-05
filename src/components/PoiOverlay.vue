@@ -45,11 +45,11 @@ const typeImages: Record<CellTypeKey, HTMLImageElement | null> = {
   industrial: null
 };
 
-/** Resize the backing canvas to fill the current viewport. */
+/** Resize the backing canvas to match its CSS-rendered size exactly. */
 const resizeCanvas = () => {
   if (!canvas.value) return;
-  canvas.value.width = window.innerWidth;
-  canvas.value.height = window.innerHeight;
+  canvas.value.width = canvas.value.clientWidth;
+  canvas.value.height = canvas.value.clientHeight;
 };
 
   /**
@@ -77,7 +77,7 @@ const resizeCanvas = () => {
   // Dynamic sizing based on zoom level
   const zoom = props.map.getZoom();
   const baseZoom = 13;
-  const baseSize = 12;
+  const baseSize = 14;
   const imgSize = baseSize * Math.pow(2, zoom - baseZoom);
   
   // Culling: Don't draw if the center is off-screen
@@ -98,7 +98,13 @@ const resizeCanvas = () => {
   c.lineWidth = 1;
   c.stroke();
 
-  c.drawImage(img, point.x - imgSize / 2, point.y - imgSize / 2, imgSize, imgSize);
+  // Preserve the image's natural aspect ratio — imgSize is the longer dimension.
+  const aspect = img.naturalWidth && img.naturalHeight
+    ? img.naturalWidth / img.naturalHeight
+    : 1;
+  const drawW = aspect >= 1 ? imgSize : imgSize * aspect;
+  const drawH = aspect >= 1 ? imgSize / aspect : imgSize;
+  c.drawImage(img, point.x - drawW / 2, point.y - drawH / 2, drawW, drawH);
 };
 
 /**
@@ -150,6 +156,7 @@ const animate = () => {
 watch(() => [props.visibleCells, props.cellTypes], () => {
   draw();
 }, { deep: true });
+watch(() => props.map, (map) => { if (map) resizeCanvas(); });
 
 onMounted(() => {
   if (!canvas.value) return;

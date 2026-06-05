@@ -55,6 +55,9 @@ describe("PoiOverlay", () => {
         vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
 
         vi.stubGlobal("Image", MockImage);
+
+        Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 1920 });
+        Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 1080 });
     });
 
     afterEach(async () => {
@@ -105,10 +108,7 @@ describe("PoiOverlay", () => {
             expect(getContextSpy).toHaveBeenCalledWith("2d");
         });
 
-        it("resizes canvas to window dimensions on mount", async () => {
-            Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 1920 });
-            Object.defineProperty(window, "innerHeight", { writable: true, configurable: true, value: 1080 });
-
+        it("resizes canvas to client dimensions on mount", async () => {
             wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
 
             const canvas = wrapper.find("canvas").element as HTMLCanvasElement;
@@ -117,13 +117,10 @@ describe("PoiOverlay", () => {
         });
 
         it("updates canvas dimensions on window resize", async () => {
-            Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 1920 });
-            Object.defineProperty(window, "innerHeight", { writable: true, configurable: true, value: 1080 });
-
             wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
 
-            Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: 1280 });
-            Object.defineProperty(window, "innerHeight", { writable: true, configurable: true, value: 720 });
+            Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 1280 });
+            Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 720 });
             window.dispatchEvent(new Event("resize"));
             await wrapper.vm.$nextTick();
 
@@ -307,7 +304,7 @@ describe("PoiOverlay", () => {
             const drawImageCalls = mockContext.getCallsByMethod("drawImage");
             expect(drawImageCalls.length).toBe(1);
 
-            const expectedSize = 12 * Math.pow(2, 16 - 13); // 96
+            const expectedSize = 14 * Math.pow(2, 16 - 13); // 112
             // args: [image, x, y, width, height]
             expect(drawImageCalls[0].args[3]).toBe(expectedSize);
             expect(drawImageCalls[0].args[4]).toBe(expectedSize);
