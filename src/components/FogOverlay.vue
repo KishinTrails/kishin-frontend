@@ -1,5 +1,7 @@
 <template>
+  <!-- Canvas is only used in gradient mode; flat mode renders via a MapLibre fill layer. -->
   <canvas
+    v-show="fogMode === 'gradient'"
     ref="canvas"
     class="fog-overlay"
   />
@@ -8,32 +10,39 @@
 <script setup lang="ts">
 /**
  * Fog overlay component for rendering unexplored map areas.
- * Uses S2 cell tokens to determine which regions are unexplored and displays
- * them with a configurable fog effect.
+ *
+ * Two rendering modes:
+ *  - flat     — headless; a MapLibre `fill` layer covers the world with a
+ *               GeoJSON Polygon whose interior rings are explored S2 cells,
+ *               punching transparent holes through the fog natively in WebGL.
+ *  - gradient — canvas-based; a radial gradient centred on the player fades
+ *               outward, with explored cells erased via `destination-out`.
+ *
+ * Switching fogMode tears down the inactive path and sets up the active one.
+ * Both paths share a vertex cache so S2 geometry is computed at most once per
+ * cell token across the component's lifetime.
  */
 
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { tokenToCell, cellToVertices } from '@/utils/s2Utils';
 import { hexToRgba } from '@/utils/color';
-import type { Map as MaplibreMap } from 'maplibre-gl';
+import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
+import type { Feature, Polygon } from 'geojson';
 
-/**
- * Props for the FogOverlay component.
- */
 interface Props {
-  /** Maplibre map instance for coordinate projection */
+  /** MapLibre GL map instance. */
   map?: MaplibreMap;
-  /** Array of S2 cell tokens representing explored areas (these areas will be clear) */
+  /** S2 cell tokens representing explored areas (punched out of the fog). */
   exploredCells?: string[];
-  /** Opacity of the fog overlay (0-1) */
+  /** Fog opacity (0–1). */
   opacity?: number;
-  /** Base color of the fog overlay as hex string */
+  /** Fog base colour as a hex string. */
   color?: string;
-  /** Player position — when set, fog fades from transparent at the player outward */
+  /** Player position — gradient mode centres the fade here. */
   playerPosition?: { lat: number; lng: number };
-  /** Visibility radius in kilometres — converted to pixels at draw time so it stays geographically fixed across zoom levels */
+  /** Gradient mode visibility radius in kilometres. */
   fogRadiusKm?: number;
-  /** Rendering mode: 'flat' fills the entire canvas uniformly; 'gradient' fades from the player outward */
+  /** 'flat' uses a MapLibre layer; 'gradient' uses a canvas radial gradient. */
   fogMode?: 'flat' | 'gradient';
 }
 
@@ -47,173 +56,267 @@ const props = withDefaults(defineProps<Props>(), {
   fogMode: 'gradient',
 });
 
-const canvas = ref<HTMLCanvasElement | null>(null);
-const ctx = ref<CanvasRenderingContext2D | null>(null);
-const animationFrame = ref<number | null>(null);
+// ─── Shared: vertex cache ──────────────────────────────────────────────────
 
-/** Resize the backing canvas to match its CSS-rendered size exactly. */
-const resizeCanvas = () => {
+/** Cached lat/lng vertices per cell token — S2 geometry never changes. */
+const vertexCache = new Map<string, Array<{ lat: number; lng: number }>>();
+
+function getVertices(token: string): Array<{ lat: number; lng: number }> | null {
+  if (vertexCache.has(token)) return vertexCache.get(token)!;
+  try {
+    const verts = cellToVertices(tokenToCell(token));
+    vertexCache.set(token, verts);
+    return verts;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Flat mode: MapLibre polygon-with-holes ────────────────────────────────
+
+const FOG_SOURCE_ID = 'fog-mask';
+const FOG_LAYER_ID  = 'fog-flat-fill';
+
+/**
+ * World-covering outer ring in CCW winding (GeoJSON spec for exterior rings).
+ * Clamped to Web Mercator latitude bounds to avoid projection artifacts.
+ */
+const WORLD_RING: [number, number][] = [
+  [-180, -85.051129],
+  [ 180, -85.051129],
+  [ 180,  85.051129],
+  [-180,  85.051129],
+  [-180, -85.051129],
+];
+
+/**
+ * Builds the fog GeoJSON: a single Polygon whose outer ring covers the world
+ * and whose interior rings are explored S2 cells (holes revealing the map).
+ *
+ * S2 vertices are CCW; interior rings (holes) require CW winding per RFC 7946,
+ * so each cell ring is reversed before being added.
+ */
+function buildFogGeoJSON(exploredCells: string[]): Feature<Polygon> {
+  const holes: [number, number][][] = [];
+
+  for (const token of exploredCells) {
+    const verts = getVertices(token);
+    if (!verts) continue;
+
+    // S2 vertices are CCW; reverse to CW for interior ring (hole).
+    const ring = verts.map(v => [v.lng, v.lat] as [number, number]);
+    ring.reverse();
+    ring.push(ring[0]); // close the ring
+    holes.push(ring);
+  }
+
+  return {
+    type: 'Feature',
+    geometry: { type: 'Polygon', coordinates: [WORLD_RING, ...holes] },
+    properties: {},
+  };
+}
+
+function updateFlatSource(map: MaplibreMap): void {
+  const src = map.getSource(FOG_SOURCE_ID) as GeoJSONSource | undefined;
+  src?.setData(buildFogGeoJSON(props.exploredCells ?? []));
+}
+
+async function setupFlatLayers(map: MaplibreMap): Promise<void> {
+  if (!map.getSource(FOG_SOURCE_ID)) {
+    map.addSource(FOG_SOURCE_ID, {
+      type: 'geojson',
+      data: buildFogGeoJSON(props.exploredCells ?? []),
+    });
+  }
+
+  if (!map.getLayer(FOG_LAYER_ID)) {
+    map.addLayer({
+      id: FOG_LAYER_ID,
+      type: 'fill',
+      source: FOG_SOURCE_ID,
+      paint: {
+        'fill-color':         props.color,
+        'fill-opacity':       props.opacity,
+        'fill-outline-color': 'rgba(0, 0, 0, 0)',
+      },
+    });
+  }
+}
+
+function teardownFlatLayers(map: MaplibreMap): void {
+  if (map.getLayer(FOG_LAYER_ID))   map.removeLayer(FOG_LAYER_ID);
+  if (map.getSource(FOG_SOURCE_ID)) map.removeSource(FOG_SOURCE_ID);
+}
+
+// ─── Gradient mode: canvas ─────────────────────────────────────────────────
+
+const canvas = ref<HTMLCanvasElement | null>(null);
+const ctx    = ref<CanvasRenderingContext2D | null>(null);
+
+const resizeCanvas = (): void => {
   if (!canvas.value) return;
-  canvas.value.width = canvas.value.clientWidth;
+  canvas.value.width  = canvas.value.clientWidth;
   canvas.value.height = canvas.value.clientHeight;
 };
 
 /**
- * Trace the outline of a single S2 cell onto the canvas context.
- *
- * When `fill` is true the cell is filled with opaque black. Combined with
- * `destination-out` composite mode in `draw()`, this punches a transparent
- * hole through the fog layer to reveal the explored area beneath.
- *
- * @param c     - Canvas 2D rendering context to draw on.
- * @param token - Hex token identifying the S2 cell to draw.
- * @param fill  - When true, fill the cell shape (default: false, outline only).
+ * Traces the S2 cell outline onto the canvas context, filling with opaque
+ * black. Used with `destination-out` composite to punch holes in the fog.
  */
-const drawS2Cell = (c: CanvasRenderingContext2D, token: string, fill: boolean = false) => {
+const drawS2Cell = (c: CanvasRenderingContext2D, token: string): void => {
   if (!props.map || typeof props.map.project !== 'function') return;
 
-  let vertices: Array<{ lat: number; lng: number }>;
-  try {
-    vertices = cellToVertices(tokenToCell(token));
-  } catch (err) {
-    console.warn(`[FogOverlay] Invalid S2 cell token: ${token}`, err);
+  const verts = getVertices(token);
+  if (!verts) {
+    console.warn(`[FogOverlay] Invalid S2 cell token: ${token}`);
     return;
   }
 
   c.beginPath();
-
-  for (let i = 0; i < vertices.length; i++) {
-    const point = props.map!.project([vertices[i].lng, vertices[i].lat]);
-    if (i === 0) {
-      c.moveTo(point.x, point.y);
-    } else {
-      c.lineTo(point.x, point.y);
-    }
+  for (let i = 0; i < verts.length; i++) {
+    const { x, y } = props.map.project([verts[i].lng, verts[i].lat]);
+    if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
   }
-
   c.closePath();
-
-  if (fill) {
-    c.fillStyle = 'rgba(0, 0, 0, 1)';
-    c.fill();
-  }
+  c.fillStyle = 'rgba(0, 0, 0, 1)';
+  c.fill();
 };
 
-/**
- * Fill the canvas with a uniform flat fog, then punch explored cells.
- *
- * @param c      - Canvas 2D rendering context.
- * @param width  - Canvas width in pixels.
- * @param height - Canvas height in pixels.
- */
-const drawFlat = (c: CanvasRenderingContext2D, width: number, height: number) => {
+const drawFlat = (c: CanvasRenderingContext2D, w: number, h: number): void => {
   c.fillStyle = hexToRgba(props.color, props.opacity);
-  c.fillRect(0, 0, width, height);
+  c.fillRect(0, 0, w, h);
 };
 
-/**
- * Fill the canvas with a radial gradient centered on the player (or map center),
- * fading from transparent at the center to full opacity at `fogRadiusKm`.
- *
- * @param c - Canvas 2D rendering context.
- * @param width  - Canvas width in pixels.
- * @param height - Canvas height in pixels.
- */
-const drawGradient = (c: CanvasRenderingContext2D, width: number, height: number) => {
-  if (!props.playerPosition || !props.map) {
-    drawFlat(c, width, height);
-    return;
-  }
+const drawGradientFill = (c: CanvasRenderingContext2D, w: number, h: number): void => {
+  if (!props.playerPosition || !props.map) { drawFlat(c, w, h); return; }
 
   const { x, y } = props.map.project([props.playerPosition.lng, props.playerPosition.lat]);
-
-  // Convert km radius to pixels by projecting a point fogRadiusKm north.
-  // Recomputed every frame so the circle stays geographically fixed across zoom levels.
-  const deltaLat = props.fogRadiusKm / 111.32;
-  const edge = props.map.project([props.playerPosition.lng, props.playerPosition.lat + deltaLat]);
+  const deltaLat = (props.fogRadiusKm ?? 0.5) / 111.32;
+  const edge     = props.map.project([props.playerPosition.lng, props.playerPosition.lat + deltaLat]);
   const radiusPx = Math.hypot(edge.x - x, edge.y - y);
 
-  const gradient = c.createRadialGradient(x, y, 0, x, y, radiusPx);
-  gradient.addColorStop(0,    hexToRgba(props.color, props.opacity * 0.85));
-  gradient.addColorStop(0.3,  hexToRgba(props.color, props.opacity * 1));
-  gradient.addColorStop(0.6,  hexToRgba(props.color, props.opacity * 1.05));
-  gradient.addColorStop(1,    hexToRgba(props.color, 1));
-  c.fillStyle = gradient;
-  c.fillRect(0, 0, width, height);
+  const g = c.createRadialGradient(x, y, 0, x, y, radiusPx);
+  g.addColorStop(0,   hexToRgba(props.color, props.opacity * 0.85));
+  g.addColorStop(0.3, hexToRgba(props.color, props.opacity * 1));
+  g.addColorStop(0.6, hexToRgba(props.color, props.opacity * 1.05));
+  g.addColorStop(1,   hexToRgba(props.color, 1));
+  c.fillStyle = g;
+  c.fillRect(0, 0, w, h);
 };
 
-/**
- * Render one frame of the fog overlay.
- *
- * Delegates the fill to `drawFlat` or `drawGradient` based on `fogMode`, then
- * switches to `destination-out` composite mode and punches out each explored
- * cell so those regions appear transparent (revealing the map tiles underneath).
- */
-const draw = () => {
-  if (!ctx.value || !canvas.value || !props.map) return;
+/** Renders one gradient-mode frame onto the canvas. */
+const draw = (): void => {
+  if (!ctx.value || !canvas.value || !props.map || props.fogMode !== 'gradient') return;
 
   const c = ctx.value;
-  const width = canvas.value.width;
-  const height = canvas.value.height;
+  const w = canvas.value.width;
+  const h = canvas.value.height;
 
-  c.clearRect(0, 0, width, height);
+  c.clearRect(0, 0, w, h);
   c.save();
-
-  if (props.fogMode === 'gradient') {
-    drawGradient(c, width, height);
-  } else {
-    drawFlat(c, width, height);
-  }
-
+  drawGradientFill(c, w, h);
   c.globalCompositeOperation = 'destination-out';
-
-  props.exploredCells.forEach((cell) => {
-    drawS2Cell(c, cell, true);
-  });
-
+  for (const cell of (props.exploredCells ?? [])) drawS2Cell(c, cell);
   c.restore();
 };
 
-/**
- * Start the `requestAnimationFrame` render loop.
- *
- * Stores the frame handle in `animationFrame` so it can be cancelled on
- * unmount. The loop redraws every frame so the fog stays aligned with the
- * map as the user pans or zooms.
- */
-const animate = () => {
-  draw();
-  animationFrame.value = requestAnimationFrame(animate);
+// ─── Style reload ──────────────────────────────────────────────────────────
+
+// setStyle() clears all sources and layers; re-register flat layers afterwards.
+// Gradient mode only needs the canvas/render-loop which survives style changes.
+const onStyleData = (): void => {
+  if (props.map && props.fogMode === 'flat') setupFlatLayers(props.map);
 };
 
-// Watch scalar props shallowly — no deep traversal needed and safe for all types.
-// props.map is intentionally excluded: deeply watching a MapLibre Map crashes Vue's
-// traversal on the internal Sets it contains. The animate() rAF loop already redraws
-// every frame, so map readiness is handled there without a watcher.
-watch(() => [props.opacity, props.color, props.playerPosition, props.fogRadiusKm, props.fogMode], draw);
-// exploredCells is an array of strings — deep watch is safe and needed to catch
-// element-level additions/removals without a reference change.
-watch(() => props.exploredCells, draw, { deep: true });
-// When the map becomes available, re-run resizeCanvas: if FogOverlay mounted before
-// initMap() completed, clientWidth/clientHeight may have been 0 at mount time.
-watch(() => props.map, (map) => { if (map) resizeCanvas(); });
+// ─── Map prop watcher ──────────────────────────────────────────────────────
+
+watch(
+  () => props.map,
+  async (map, oldMap) => {
+    if (oldMap) {
+      oldMap.off('styledata', onStyleData);
+      oldMap.off('render', draw);
+      teardownFlatLayers(oldMap);
+    }
+    if (!map) return;
+    map.on('styledata', onStyleData);
+    if (props.fogMode === 'flat') {
+      await setupFlatLayers(map);
+    } else {
+      resizeCanvas();
+      map.on('render', draw);
+    }
+  },
+  { immediate: true },
+);
+
+// ─── fogMode switch ────────────────────────────────────────────────────────
+
+watch(
+  () => props.fogMode,
+  async (mode) => {
+    if (!props.map) return;
+    if (mode === 'flat') {
+      props.map.off('render', draw);
+      teardownFlatLayers(props.map); // idempotent if not set up
+      await setupFlatLayers(props.map);
+    } else {
+      teardownFlatLayers(props.map);
+      // Canvas is revealed by v-show; wait for layout before resizing.
+      await nextTick();
+      resizeCanvas();
+      props.map.on('render', draw);
+    }
+  },
+);
+
+// ─── Reactive data updates ─────────────────────────────────────────────────
+
+watch(
+  () => props.exploredCells,
+  () => {
+    if (!props.map) return;
+    if (props.fogMode === 'flat') updateFlatSource(props.map);
+    else draw();
+  },
+  { deep: true },
+);
+
+watch(
+  () => [props.opacity, props.color] as const,
+  () => {
+    if (!props.map) return;
+    if (props.fogMode === 'flat') {
+      if (props.map.getLayer(FOG_LAYER_ID)) {
+        props.map.setPaintProperty(FOG_LAYER_ID, 'fill-opacity', props.opacity);
+        props.map.setPaintProperty(FOG_LAYER_ID, 'fill-color', props.color);
+      }
+    } else {
+      draw();
+    }
+  },
+);
+
+watch(
+  () => [props.playerPosition, props.fogRadiusKm] as const,
+  () => { if (props.fogMode === 'gradient') draw(); },
+);
+
+// ─── Lifecycle ─────────────────────────────────────────────────────────────
 
 onMounted(() => {
   if (!canvas.value) return;
-  
   ctx.value = canvas.value.getContext('2d');
-  if (!ctx.value) return;
-  
   resizeCanvas();
-  
   window.addEventListener('resize', resizeCanvas);
-  
-  animate();
 });
 
 onUnmounted(() => {
-  if (animationFrame.value) {
-    cancelAnimationFrame(animationFrame.value);
+  if (props.map) {
+    props.map.off('render', draw);
+    props.map.off('styledata', onStyleData);
+    teardownFlatLayers(props.map);
   }
   window.removeEventListener('resize', resizeCanvas);
 });

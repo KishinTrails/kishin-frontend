@@ -1,592 +1,492 @@
-import { mount, VueWrapper } from "@vue/test-utils";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import FogOverlay from "@/components/FogOverlay.vue";
-import { MockHTMLCanvasElement, MockCanvasRenderingContext2D } from "@/__mocks__/canvas";
+import { mount, VueWrapper } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import FogOverlay from '@/components/FogOverlay.vue';
+import { MockCanvasRenderingContext2D } from '@/__mocks__/canvas';
 
-vi.mock("@/utils/s2Utils", () => {
-    const degreeVertices = [
-        { lat: 45.75, lng: 3.1 },
-        { lat: 45.76, lng: 3.1 },
-        { lat: 45.76, lng: 3.11 },
-        { lat: 45.75, lng: 3.11 },
-    ];
-    return {
-        tokenToCell: vi.fn().mockImplementation((token: string) => token),
-        cellToVertices: vi.fn().mockImplementation(() => degreeVertices),
-    };
+vi.mock('@/utils/s2Utils', () => {
+  const degreeVertices = [
+    { lat: 45.75, lng: 3.1  },
+    { lat: 45.76, lng: 3.1  },
+    { lat: 45.76, lng: 3.11 },
+    { lat: 45.75, lng: 3.11 },
+  ];
+  return {
+    tokenToCell:    vi.fn().mockImplementation((token: string) => token),
+    cellToVertices: vi.fn().mockImplementation(() => degreeVertices),
+  };
 });
 
-vi.mock("@/utils/color", () => ({
-    hexToRgba: vi.fn((hex: string, alpha: number) => `rgba(${hex}, ${alpha})`),
+vi.mock('@/utils/color', () => ({
+  hexToRgba: vi.fn((hex: string, alpha: number) => `rgba(${hex}, ${alpha})`),
 }));
 
-describe("FogOverlay", () => {
-    let mockMap: any;
-    let mockCanvas: MockHTMLCanvasElement;
-    let mockContext: MockCanvasRenderingContext2D;
-    let wrapper: VueWrapper<any>;
+// ─── Mock map factory ──────────────────────────────────────────────────────────
 
-    beforeEach(() => {
-        mockMap = {
-            project: vi.fn((coord: [number, number]) => ({
-                x: coord[0] * 1000,
-                y: coord[1] * 1000,
-            })),
-        };
+const makeMap = (): any => {
+  const listeners = new Map<string, Array<() => void>>();
+  const sources   = new Map<string, { setData: ReturnType<typeof vi.fn> }>();
+  const layers: string[] = [];
 
-        mockCanvas = new MockHTMLCanvasElement();
-        mockContext = mockCanvas.getMockContext()!;
+  return {
+    project: vi.fn((coord: [number, number]) => ({ x: coord[0] * 1000, y: coord[1] * 1000 })),
 
-        (HTMLCanvasElement.prototype.getContext as any) = function (contextType: string): any {
-            if (contextType === "2d") {
-                return mockContext;
-            }
-            return null;
-        };
+    on:  vi.fn((ev: string, cb: () => void) => {
+      if (!listeners.has(ev)) listeners.set(ev, []);
+      listeners.get(ev)!.push(cb);
+    }),
+    off: vi.fn((ev: string, cb: () => void) => {
+      const list = listeners.get(ev);
+      if (list) listeners.set(ev, list.filter(f => f !== cb));
+    }),
+    /** Test helper: fire all listeners for an event. */
+    emit: (ev: string) => listeners.get(ev)?.forEach(cb => cb()),
 
-        vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback: FrameRequestCallback) => {
-            setTimeout(() => callback(0), 16);
-            return 0;
-        });
+    addSource:    vi.fn((id: string) => sources.set(id, { setData: vi.fn() })),
+    getSource:    vi.fn((id: string) => sources.get(id)),
+    removeSource: vi.fn((id: string) => sources.delete(id)),
 
-        vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    addLayer:         vi.fn((l: { id: string }) => layers.push(l.id)),
+    getLayer:         vi.fn((id: string) => (layers.includes(id) ? {} : undefined)),
+    removeLayer:      vi.fn((id: string) => layers.splice(layers.indexOf(id), 1)),
+    setPaintProperty: vi.fn(),
+  };
+};
 
-        Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 800 });
-        Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
-        Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 1920 });
-        Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 1080 });
+
+// ─── Suite ─────────────────────────────────────────────────────────────────────
+
+describe('FogOverlay', () => {
+  let mockMap: any;
+  let mockContext: MockCanvasRenderingContext2D;
+  let wrapper: VueWrapper<any>;
+
+  beforeEach(() => {
+    mockMap     = makeMap();
+    mockContext = new MockCanvasRenderingContext2D();
+
+    (HTMLCanvasElement.prototype.getContext as any) = (type: string) =>
+      type === '2d' ? mockContext : null;
+
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth',  { configurable: true, value: 1920 });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, value: 1080 });
+  });
+
+  afterEach(async () => {
+    await wrapper?.unmount();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    mockContext.clearHistory();
+  });
+
+  // ── Rendering ─────────────────────────────────────────────────────────────
+
+  describe('Rendering', () => {
+    it('renders canvas element in gradient mode', () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      expect(wrapper.find('canvas.fog-overlay').exists()).toBe(true);
     });
 
-    afterEach(() => {
-        vi.clearAllMocks();
-        vi.restoreAllMocks();
-        mockContext.clearHistory();
+    it('canvas is hidden (v-show) in flat mode', () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'flat' } });
+      const canvas = wrapper.find('canvas').element as HTMLElement;
+      expect(canvas.style.display).toBe('none');
     });
 
-    describe("Rendering", () => {
-        it("renders canvas element", () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["test-cell"],
-                },
-            });
-
-            expect(wrapper.find("canvas").exists()).toBe(true);
-            expect(wrapper.find("canvas.fog-overlay").exists()).toBe(true);
-        });
-
-        it("applies default props", () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            expect(wrapper.props("opacity")).toBe(1);
-            expect(wrapper.props("color")).toBe("#1a1a1a");
-        });
-
-        it("accepts custom opacity", () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                    opacity: 0.5,
-                },
-            });
-
-            expect(wrapper.props("opacity")).toBe(0.5);
-        });
-
-        it("accepts custom color", () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                    color: "#ff0000",
-                },
-            });
-
-            expect(wrapper.props("color")).toBe("#ff0000");
-        });
-
-        it("exposes draw method", () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            expect(typeof wrapper.vm.draw).toBe("function");
-        });
+    it('applies default props', () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [] } });
+      expect(wrapper.props('opacity')).toBe(1);
+      expect(wrapper.props('color')).toBe('#1a1a1a');
     });
 
-    describe("Canvas Initialization", () => {
-        it("gets 2d context on mount", async () => {
-            const getContextSpy = vi.fn().mockReturnValue(mockContext);
-            HTMLCanvasElement.prototype.getContext = getContextSpy;
-
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-
-            expect(getContextSpy).toHaveBeenCalledWith("2d");
-        });
-
-        it("resizes canvas to client dimensions on mount", async () => {
-            wrapper = mount(FogOverlay, {
-                props: { map: mockMap, exploredCells: [] },
-            });
-
-            await wrapper.vm.$nextTick();
-
-            const canvasElement = wrapper.find("canvas").element as HTMLCanvasElement;
-            expect(canvasElement.width).toBe(1920);
-            expect(canvasElement.height).toBe(1080);
-        });
-
-        it("adds resize event listener on mount", async () => {
-            const addEventListenerSpy = vi.spyOn(window, "addEventListener");
-
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-
-            expect(addEventListenerSpy).toHaveBeenCalledWith("resize", expect.any(Function));
-        });
-
-        it("removes resize event listener on unmount", async () => {
-            const removeEventListenerSpy = vi.spyOn(window, "removeEventListener");
-
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await wrapper.unmount();
-
-            expect(removeEventListenerSpy).toHaveBeenCalledWith("resize", expect.any(Function));
-        });
-
-        it("cancels animation frame on unmount", async () => {
-            const cancelAnimationFrameSpy = vi.spyOn(window, "cancelAnimationFrame");
-            let capturedFrameId: number = 0;
-            let frameCounter = 1;
-
-            vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback: FrameRequestCallback) => {
-                const id = frameCounter++;
-                setTimeout(() => callback(0), 16);
-                if (!capturedFrameId) {
-                    capturedFrameId = id;
-                }
-                return id;
-            });
-
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            await wrapper.unmount();
-
-            expect(cancelAnimationFrameSpy).toHaveBeenCalled();
-        });
+    it('accepts custom opacity', () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], opacity: 0.5 } });
+      expect(wrapper.props('opacity')).toBe(0.5);
     });
 
-    describe("Drawing Operations", () => {
-        it("clears canvas when drawing", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const clearRectCalls = mockContext.getCallsByMethod("clearRect");
-            expect(clearRectCalls.length).toBeGreaterThan(0);
-        });
-
-        it("fills canvas with background color", async () => {
-            wrapper = mount(FogOverlay, {
-                props: { map: mockMap, exploredCells: [], color: "#1a1a1a", opacity: 0.85 },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const fillRectCalls = mockContext.getCallsByMethod("fillRect");
-            expect(fillRectCalls.length).toBeGreaterThan(0);
-            expect(fillRectCalls[0].args).toEqual([0, 0, 1920, 1080]);
-        });
-
-        it("sets fillStyle with hexToRgba conversion", async () => {
-            const { hexToRgba } = await import("@/utils/color");
-
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                    color: "#1a1a1a",
-                    opacity: 0.85,
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            expect(hexToRgba).toHaveBeenCalledWith("#1a1a1a", 0.85);
-        });
-
-        it("uses destination-out composite operation", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["test-cell"],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            expect(mockContext.globalCompositeOperation).toBe("destination-out");
-        });
-
-        it("saves and restores context state", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const saveCalls = mockContext.getCallsByMethod("save");
-            const restoreCalls = mockContext.getCallsByMethod("restore");
-            expect(saveCalls.length).toBeGreaterThan(0);
-            expect(restoreCalls.length).toBeGreaterThan(0);
-        });
+    it('accepts custom color', () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], color: '#ff0000' } });
+      expect(wrapper.props('color')).toBe('#ff0000');
     });
 
-    describe("S2 Cell Drawing", () => {
-        it("draws S2 cells from exploredCells prop", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["4789459f"],
-                },
-            });
+    it('exposes draw method', () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [] } });
+      expect(typeof wrapper.vm.draw).toBe('function');
+    });
+  });
 
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
+  // ── Canvas Initialization (gradient mode) ─────────────────────────────────
 
-            const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            expect(beginPathCalls.length).toBeGreaterThan(1);
-        });
+  describe('Canvas Initialization', () => {
+    it('gets 2d context on mount', async () => {
+      const getContextSpy = vi.fn().mockReturnValue(mockContext);
+      HTMLCanvasElement.prototype.getContext = getContextSpy;
 
-        it("closes path after drawing cell boundary", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["test-cell"],
-                },
-            });
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
 
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const closePathCalls = mockContext.getCallsByMethod("closePath");
-            expect(closePathCalls.length).toBeGreaterThan(0);
-        });
-
-        it("fills cell with black color", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["test-cell"],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const fillCalls = mockContext.getCallsByMethod("fill");
-            expect(fillCalls.length).toBeGreaterThan(0);
-        });
-
-        it("skips invalid cells that throw on construction", async () => {
-            const { cellToVertices } = await import("@/utils/s2Utils");
-            vi.mocked(cellToVertices).mockImplementationOnce(() => {
-                throw new Error("invalid cell");
-            });
-
-            const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-            wrapper = mount(FogOverlay, {
-                props: { map: mockMap, exploredCells: ["invalid"] },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            expect(consoleWarnSpy).toHaveBeenCalledWith(
-                "[FogOverlay] Invalid S2 cell token: invalid",
-                expect.any(Error),
-            );
-
-            consoleWarnSpy.mockRestore();
-        });
-
-        it("draws multiple cells", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["test-cell-1", "test-cell-2"],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            expect(beginPathCalls.length).toBeGreaterThan(2);
-        });
+      expect(getContextSpy).toHaveBeenCalledWith('2d');
     });
 
-    describe("Reactivity", () => {
-        it("redraws when exploredCells prop changes", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
+    it('resizes canvas to client dimensions on mount', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
 
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            mockContext.clearHistory();
-
-            await wrapper.setProps({ exploredCells: ["new-cell"] });
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            expect(beginPathCalls.length).toBeGreaterThan(0);
-        });
-
-        it("redraws when opacity changes", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                    opacity: 0.5,
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            mockContext.clearHistory();
-
-            await wrapper.setProps({ opacity: 0.75 });
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const fillRectCalls = mockContext.getCallsByMethod("fillRect");
-            expect(fillRectCalls.length).toBeGreaterThan(0);
-        });
-
-        it("redraws when color changes", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                    color: "#000000",
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            mockContext.clearHistory();
-
-            await wrapper.setProps({ color: "#ffffff" });
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const fillRectCalls = mockContext.getCallsByMethod("fillRect");
-            expect(fillRectCalls.length).toBeGreaterThan(0);
-        });
-
-        it("redraws when map changes", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            mockContext.clearHistory();
-
-            const newMap = {
-                project: vi.fn((coord: [number, number]) => ({
-                    x: coord[0] * 2000,
-                    y: coord[1] * 2000,
-                })),
-            };
-
-            await wrapper.setProps({ map: newMap });
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            const fillRectCalls = mockContext.getCallsByMethod("fillRect");
-            expect(fillRectCalls.length).toBeGreaterThan(0);
-        });
+      const canvas = wrapper.find('canvas').element as HTMLCanvasElement;
+      expect(canvas.width).toBe(1920);
+      expect(canvas.height).toBe(1080);
     });
 
-    describe("Animation", () => {
-        it("starts animation loop on mount", async () => {
-            const requestAnimationFrameSpy = vi.spyOn(window, "requestAnimationFrame");
+    it('adds resize event listener on mount', async () => {
+      const spy = vi.spyOn(window, 'addEventListener');
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
 
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            expect(requestAnimationFrameSpy).toHaveBeenCalled();
-        });
-
-        it("continues animation loop with multiple frames", async () => {
-            let frameCount = 0;
-            vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback: FrameRequestCallback) => {
-                frameCount++;
-                if (frameCount <= 3) {
-                    setTimeout(() => callback(0), 16);
-                }
-                return frameCount;
-            });
-
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            await new Promise((resolve) => setTimeout(resolve, 100));
-
-            expect(frameCount).toBeGreaterThan(1);
-        });
+      expect(spy).toHaveBeenCalledWith('resize', expect.any(Function));
     });
 
-    describe("Resize Handling", () => {
-        it("updates canvas dimensions on window resize", async () => {
-            wrapper = mount(FogOverlay, {
-                props: { map: mockMap, exploredCells: [] },
-            });
+    it('removes resize event listener on unmount', async () => {
+      const spy = vi.spyOn(window, 'removeEventListener');
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
+      await wrapper.unmount();
 
-            await wrapper.vm.$nextTick();
-
-            const canvasElement = wrapper.find("canvas").element as HTMLCanvasElement;
-            expect(canvasElement.width).toBe(1920);
-            expect(canvasElement.height).toBe(1080);
-
-            Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 1280 });
-            Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 720 });
-
-            window.dispatchEvent(new Event("resize"));
-            await wrapper.vm.$nextTick();
-
-            expect(canvasElement.width).toBe(1280);
-            expect(canvasElement.height).toBe(720);
-        });
+      expect(spy).toHaveBeenCalledWith('resize', expect.any(Function));
     });
 
-    describe("Manual Draw Method", () => {
-        it("can be called manually to trigger redraw", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: [],
-                },
-            });
+    it('updates canvas dimensions on window resize', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
 
-            await wrapper.vm.$nextTick();
-            mockContext.clearHistory();
+      Object.defineProperty(HTMLElement.prototype, 'clientWidth',  { configurable: true, value: 1280 });
+      Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, value: 720  });
+      window.dispatchEvent(new Event('resize'));
+      await wrapper.vm.$nextTick();
 
-            wrapper.vm.draw();
-            await wrapper.vm.$nextTick();
-
-            const clearRectCalls = mockContext.getCallsByMethod("clearRect");
-            expect(clearRectCalls.length).toBeGreaterThan(0);
-        });
-
-        it("does nothing without map", async () => {
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: undefined,
-                    exploredCells: ["test-cell"],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-            await wrapper.vm.$nextTick();
-
-            const beginPathCalls = mockContext.getCallsByMethod("beginPath");
-            expect(beginPathCalls.length).toBe(0);
-        });
-
-        it("does nothing without context", async () => {
-            HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
-
-            wrapper = mount(FogOverlay, {
-                props: {
-                    map: mockMap,
-                    exploredCells: ["test-cell"],
-                },
-            });
-
-            await wrapper.vm.$nextTick();
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-            await wrapper.vm.$nextTick();
-
-            const clearRectCalls = mockContext.getCallsByMethod("clearRect");
-            expect(clearRectCalls.length).toBe(0);
-        });
+      const canvas = wrapper.find('canvas').element as HTMLCanvasElement;
+      expect(canvas.width).toBe(1280);
+      expect(canvas.height).toBe(720);
     });
+
+    it('registers render event listener on map in gradient mode', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
+
+      expect(mockMap.on).toHaveBeenCalledWith('render', expect.any(Function));
+    });
+
+    it('deregisters render event listener on unmount', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
+      await wrapper.unmount();
+
+      expect(mockMap.off).toHaveBeenCalledWith('render', expect.any(Function));
+    });
+  });
+
+  // ── Drawing Operations (gradient mode) ────────────────────────────────────
+
+  describe('Drawing Operations', () => {
+    it('clears canvas when drawing', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('clearRect').length).toBeGreaterThan(0);
+    });
+
+    it('fills canvas with background color', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: [], color: '#1a1a1a', opacity: 0.85, fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      const calls = mockContext.getCallsByMethod('fillRect');
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls[0].args).toEqual([0, 0, 1920, 1080]);
+    });
+
+    it('sets fillStyle with hexToRgba conversion', async () => {
+      const { hexToRgba } = await import('@/utils/color');
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: [], color: '#1a1a1a', opacity: 0.85, fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(hexToRgba).toHaveBeenCalledWith('#1a1a1a', expect.any(Number));
+    });
+
+    it('uses destination-out composite operation when explored cells are present', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: ['test-cell'], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.globalCompositeOperation).toBe('destination-out');
+    });
+
+    it('saves and restores context state', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('save').length).toBeGreaterThan(0);
+      expect(mockContext.getCallsByMethod('restore').length).toBeGreaterThan(0);
+    });
+  });
+
+  // ── S2 Cell Drawing (gradient mode) ───────────────────────────────────────
+
+  describe('S2 Cell Drawing', () => {
+    it('draws S2 cells from exploredCells prop', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: ['4789459f'], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('beginPath').length).toBeGreaterThan(0);
+    });
+
+    it('closes path after drawing cell boundary', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: ['test-cell'], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('closePath').length).toBeGreaterThan(0);
+    });
+
+    it('fills cell with black color', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: ['test-cell'], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('fill').length).toBeGreaterThan(0);
+    });
+
+    it('skips invalid cells that throw on construction', async () => {
+      const { cellToVertices } = await import('@/utils/s2Utils');
+      vi.mocked(cellToVertices).mockImplementationOnce(() => { throw new Error('invalid cell'); });
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: ['invalid'], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(warnSpy).toHaveBeenCalledWith('[FogOverlay] Invalid S2 cell token: invalid');
+      warnSpy.mockRestore();
+    });
+
+    it('draws multiple cells', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: ['cell-1', 'cell-2'], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('beginPath').length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  // ── Reactivity ────────────────────────────────────────────────────────────
+
+  describe('Reactivity', () => {
+    it('redraws when exploredCells prop changes', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: [], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+      mockContext.clearHistory();
+
+      await wrapper.setProps({ exploredCells: ['new-cell'] });
+      await wrapper.vm.$nextTick();
+
+      expect(mockContext.getCallsByMethod('clearRect').length).toBeGreaterThan(0);
+    });
+
+    it('redraws when opacity changes', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: [], opacity: 0.5, fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+      mockContext.clearHistory();
+
+      await wrapper.setProps({ opacity: 0.75 });
+      await wrapper.vm.$nextTick();
+
+      expect(mockContext.getCallsByMethod('fillRect').length).toBeGreaterThan(0);
+    });
+
+    it('redraws when color changes', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: [], color: '#000000', fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+      mockContext.clearHistory();
+
+      await wrapper.setProps({ color: '#ffffff' });
+      await wrapper.vm.$nextTick();
+
+      expect(mockContext.getCallsByMethod('fillRect').length).toBeGreaterThan(0);
+    });
+
+    it('redraws when map changes', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: [], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+      mockContext.clearHistory();
+
+      const newMap = makeMap();
+      await wrapper.setProps({ map: newMap });
+      await wrapper.vm.$nextTick();
+
+      // New map is registered; emit render to verify the draw callback is wired up.
+      newMap.emit('render');
+      expect(mockContext.getCallsByMethod('fillRect').length).toBeGreaterThan(0);
+    });
+  });
+
+  // ── Manual Draw Method ────────────────────────────────────────────────────
+
+  describe('Manual Draw Method', () => {
+    it('clears and redraws when called manually', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'gradient' } });
+      await wrapper.vm.$nextTick();
+      mockContext.clearHistory();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('clearRect').length).toBe(1);
+    });
+
+    it('does nothing without map', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: undefined, exploredCells: ['test-cell'], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('clearRect').length).toBe(0);
+    });
+
+    it('does nothing without context', async () => {
+      HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: ['test-cell'], fogMode: 'gradient' },
+      });
+      await wrapper.vm.$nextTick();
+      mockContext.clearHistory();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('clearRect').length).toBe(0);
+    });
+
+    it('does nothing in flat mode', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: ['test-cell'], fogMode: 'flat' },
+      });
+      await wrapper.vm.$nextTick();
+      await new Promise(r => setTimeout(r, 0));
+      mockContext.clearHistory();
+
+      wrapper.vm.draw();
+
+      expect(mockContext.getCallsByMethod('clearRect').length).toBe(0);
+    });
+  });
+
+  // ── Flat mode: MapLibre layers ────────────────────────────────────────────
+
+  describe('Flat mode', () => {
+    it('adds fog-mask source in flat mode', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'flat' } });
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(mockMap.addSource).toHaveBeenCalledWith('fog-mask', expect.objectContaining({ type: 'geojson' }));
+    });
+
+    it('adds fog-flat-fill fill layer in flat mode', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'flat' } });
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(mockMap.addLayer).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'fog-flat-fill', type: 'fill', source: 'fog-mask' }),
+      );
+    });
+
+    it('does NOT register render listener in flat mode', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'flat' } });
+      await new Promise(r => setTimeout(r, 0));
+
+      const renderCalls = mockMap.on.mock.calls.filter((c: any[]) => c[0] === 'render');
+      expect(renderCalls).toHaveLength(0);
+    });
+
+    it('updates source data when exploredCells changes in flat mode', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'flat' } });
+      await new Promise(r => setTimeout(r, 0));
+
+      const source = mockMap.getSource('fog-mask')!;
+      const callsBefore = source.setData.mock.calls.length;
+
+      await wrapper.setProps({ exploredCells: ['cell-1'] });
+      await wrapper.vm.$nextTick();
+
+      expect(source.setData.mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+
+    it('calls setPaintProperty when opacity changes in flat mode', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: [], fogMode: 'flat', opacity: 0.9 },
+      });
+      await new Promise(r => setTimeout(r, 0));
+
+      await wrapper.setProps({ opacity: 0.5 });
+      await wrapper.vm.$nextTick();
+
+      expect(mockMap.setPaintProperty).toHaveBeenCalledWith('fog-flat-fill', 'fill-opacity', 0.5);
+    });
+
+    it('calls setPaintProperty when color changes in flat mode', async () => {
+      wrapper = mount(FogOverlay, {
+        props: { map: mockMap, exploredCells: [], fogMode: 'flat', color: '#1a1a1a' },
+      });
+      await new Promise(r => setTimeout(r, 0));
+
+      await wrapper.setProps({ color: '#ff0000' });
+      await wrapper.vm.$nextTick();
+
+      expect(mockMap.setPaintProperty).toHaveBeenCalledWith('fog-flat-fill', 'fill-color', '#ff0000');
+    });
+
+    it('removes layer and source on unmount in flat mode', async () => {
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'flat' } });
+      await new Promise(r => setTimeout(r, 0));
+      await wrapper.unmount();
+
+      expect(mockMap.removeLayer).toHaveBeenCalledWith('fog-flat-fill');
+      expect(mockMap.removeSource).toHaveBeenCalledWith('fog-mask');
+    });
+  });
 });
