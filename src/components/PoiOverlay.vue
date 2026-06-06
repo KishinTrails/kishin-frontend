@@ -1,31 +1,22 @@
-<template>
-  <canvas
-    ref="canvas"
-    class="poi-overlay"
-  />
-</template>
-
 <script setup lang="ts">
 /**
- * POI overlay component that renders point-of-interest icons on explored S2 cells.
+ * POI overlay component — manages MapLibre GeoJSON source and layers for
+ * point-of-interest icons on explored S2 cells.
  *
- * Draws directly onto a canvas positioned above the map, using Mercator
- * coordinate projection to keep icons aligned with the map as the user pans
- * or zooms. Icons are type-specific images (peak / natural / industrial) sized
- * dynamically based on the current zoom level.
+ * Renders entirely inside MapLibre's WebGL pipeline; this component has no DOM
+ * element of its own. It does not own GPS tracking, cell exploration state, or
+ * tile fetching — those live in useTrailMap / GpsTracker.
  */
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { watch, onUnmounted } from 'vue';
+import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
+import type { FeatureCollection, Feature, Polygon } from 'geojson';
 import { tokenToCell, cellToVertices, isValidToken } from '@/utils/s2Utils';
-import type { Map as MaplibreMap } from 'maplibre-gl';
 
-/**
- * Valid POI cell type categories.
- * Matches the types defined in useTrailMap.ts.
- */
+/** Valid POI cell type categories. Matches the types defined in useTrailMap.ts. */
 type CellTypeKey = 'peak' | 'natural' | 'industrial';
 
 interface Props {
-  /** MapLibre GL map instance used for coordinate projection. */
+  /** MapLibre GL map instance used for source/layer management. */
   map?: MaplibreMap;
   /** Map from S2 cell token to its POI type. */
   cellTypes: Map<string, CellTypeKey>;
@@ -35,164 +26,167 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const canvas = ref<HTMLCanvasElement | null>(null);
-const ctx = ref<CanvasRenderingContext2D | null>(null);
-const animationFrame = ref<number | null>(null);
+const SOURCE_ID    = 'poi-cells';
+const SYM_LAYER_ID = 'poi-icons';
 
-const typeImages: Record<CellTypeKey, HTMLImageElement | null> = {
-  peak: null,
-  natural: null,
-  industrial: null
-};
+const IMAGE_DEFS: Array<{ id: CellTypeKey; url: string }> = [
+  { id: 'peak',       url: '/tori.png'    },
+  { id: 'natural',    url: '/nature.png'  },
+  { id: 'industrial', url: '/factory.png' },
+];
 
-/** Resize the backing canvas to match its CSS-rendered size exactly. */
-const resizeCanvas = () => {
-  if (!canvas.value) return;
-  canvas.value.width = canvas.value.clientWidth;
-  canvas.value.height = canvas.value.clientHeight;
-};
-
-  /**
-   * Draws an icon at the center of an S2 cell.
-   */
-  const drawS2CellImage = (c: CanvasRenderingContext2D, token: string, img: HTMLImageElement | null) => {
-  if (!props.map || !img || typeof props.map.project !== 'function') return;
-  if (!isValidToken(token)) return;
-
-  let vertices: Array<{ lat: number; lng: number }>;
-
-  try {
-    // Convert S2 token to vertices via the utility
-    vertices = cellToVertices(tokenToCell(token));
-  } catch (err) {
-    return;
-  }
-
-  // Calculate the centroid of the S2 cell for icon placement
-  const centerLat = vertices.reduce((sum, v) => sum + v.lat, 0) / vertices.length;
-  const centerLng = vertices.reduce((sum, v) => sum + v.lng, 0) / vertices.length;
-  
-  const point = props.map.project([centerLng, centerLat]);
-  
-  // Dynamic sizing based on zoom level
-  const zoom = props.map.getZoom();
-  const baseZoom = 13;
-  const baseSize = 14;
-  const imgSize = baseSize * Math.pow(2, zoom - baseZoom);
-  
-  // Culling: Don't draw if the center is off-screen
-  if (point.x < -imgSize / 2 || point.x > canvas.value!.width + imgSize / 2 || 
-      point.y < -imgSize / 2 || point.y > canvas.value!.height + imgSize / 2) {
-    return;
-  }
-  
-  // Draw cell boundary for debug/visual clarity
-  c.beginPath();
-  vertices.forEach((v, i) => {
-    const p = props.map!.project([v.lng, v.lat]);
-    if (i === 0) c.moveTo(p.x, p.y);
-    else c.lineTo(p.x, p.y);
-  });
-  c.closePath();
-  c.strokeStyle = 'rgba(153, 153, 153, 0.5)';
-  c.lineWidth = 1;
-  c.stroke();
-
-  // Preserve the image's natural aspect ratio — imgSize is the longer dimension.
-  const aspect = img.naturalWidth && img.naturalHeight
-    ? img.naturalWidth / img.naturalHeight
-    : 1;
-  const drawW = aspect >= 1 ? imgSize : imgSize * aspect;
-  const drawH = aspect >= 1 ? imgSize / aspect : imgSize;
-  c.drawImage(img, point.x - drawW / 2, point.y - drawH / 2, drawW, drawH);
-};
+/** Cached lat/lng vertices per cell token — S2 geometry never changes. */
+const vertexCache = new Map<string, Array<{ lat: number; lng: number }>>();
 
 /**
- * Render one frame of the POI overlay.
+ * Builds a GeoJSON FeatureCollection of S2 cell polygons for all visible POI cells.
  *
- * Clears the canvas and redraws an icon for every visible cell that has a
- * known POI type. Cells without a type in `cellTypes` are skipped silently.
+ * @param visibleCells - S2 cell tokens currently in the viewport.
+ * @param cellTypes    - Map from token to POI type.
+ * @param cache        - Mutable vertex cache shared across calls.
+ * @returns GeoJSON FeatureCollection with one Polygon feature per POI cell.
  */
-const draw = () => {
-  if (!ctx.value || !canvas.value || !props.map) return;
+function buildGeoJSON(
+  visibleCells: string[],
+  cellTypes: Map<string, CellTypeKey>,
+  cache: Map<string, Array<{ lat: number; lng: number }>>,
+): FeatureCollection<Polygon> {
+  const features: Feature<Polygon>[] = [];
 
-  const c = ctx.value;
-  c.clearRect(0, 0, canvas.value.width, canvas.value.height);
-
-  for (const cell of props.visibleCells) {
-    const type = props.cellTypes.get(cell);
+  for (const token of visibleCells) {
+    const type = cellTypes.get(token);
     if (!type) continue;
-    const img = typeImages[type];
-    drawS2CellImage(c, cell, img);
+
+    let verts = cache.get(token);
+    if (!verts) {
+      if (!isValidToken(token)) continue;
+      try {
+        verts = cellToVertices(tokenToCell(token));
+        cache.set(token, verts);
+      } catch {
+        continue;
+      }
+    }
+
+    // GeoJSON polygon rings must close: repeat the first vertex at the end.
+    const ring = [...verts.map(v => [v.lng, v.lat] as [number, number])];
+    ring.push(ring[0]);
+
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [ring] },
+      properties: { cellType: type },
+    });
   }
-};
 
-/**
- * Create an `HTMLImageElement` and begin loading the given source URL.
- *
- * The element is stored in `typeImages` so subsequent draw calls can use it
- * once the browser has decoded the image asynchronously.
- *
- * @param src - URL of the icon image to load.
- * @returns   The (potentially still loading) image element.
- */
-const loadImage = (src: string): HTMLImageElement => {
-  const img = new Image();
-  img.src = src;
-  return img;
-};
-
-/**
- * Start the `requestAnimationFrame` render loop.
- *
- * Keeps icons aligned with the map during pans and zooms without requiring
- * explicit map event subscriptions.
- */
-const animate = () => {
-  draw();
-  animationFrame.value = requestAnimationFrame(animate);
-};
-
-watch(() => [props.visibleCells, props.cellTypes], () => {
-  draw();
-}, { deep: true });
-watch(() => props.map, (map) => { if (map) resizeCanvas(); });
-
-onMounted(() => {
-  if (!canvas.value) return;
-  
-  ctx.value = canvas.value.getContext('2d');
-  if (!ctx.value) return;
-  
-  resizeCanvas();
-  
-  // Initialize images
-  typeImages.peak = loadImage('/tori.png');
-  typeImages.natural = loadImage('/nature.png');
-  typeImages.industrial = loadImage('/factory.png');
-  
-  window.addEventListener('resize', resizeCanvas);
-  animate();
-});
-
-onUnmounted(() => {
-  if (animationFrame.value) {
-    cancelAnimationFrame(animationFrame.value);
-  }
-  window.removeEventListener('resize', resizeCanvas);
-});
-
-defineExpose({ draw });
-</script>
-
-<style scoped>
-.poi-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 2; /* Sits above the FogOverlay (z-index: 1) */
+  return { type: 'FeatureCollection', features };
 }
-</style>
+
+/**
+ * Loads all three POI icon PNGs into MapLibre's image atlas.
+ *
+ * Must resolve before the symbol layer is added, otherwise MapLibre silently
+ * skips icon rendering. The double `hasImage` guard makes this safe to call
+ * multiple times (e.g. on style reloads).
+ *
+ * @param map - The MapLibre map instance.
+ */
+async function loadImages(map: MaplibreMap): Promise<void> {
+  await Promise.all(
+    IMAGE_DEFS.map(async ({ id, url }) => {
+      if (map.hasImage(id)) return;
+      const res = await map.loadImage(url);
+      if (!map.hasImage(id)) map.addImage(id, res.data);
+    }),
+  );
+}
+
+/**
+ * Pushes the current GeoJSON data to the MapLibre source.
+ *
+ * @param map - The MapLibre map instance.
+ */
+function updateSource(map: MaplibreMap): void {
+  const src = map.getSource(SOURCE_ID) as GeoJSONSource | undefined;
+  src?.setData(buildGeoJSON(props.visibleCells, props.cellTypes, vertexCache));
+}
+
+/**
+ * Registers the GeoJSON source and symbol layer on the map.
+ *
+ * Idempotent: each resource is only added if absent, so this can be called
+ * safely on style reloads without double-registration errors.
+ *
+ * @param map - The MapLibre map instance.
+ */
+async function setupLayers(map: MaplibreMap): Promise<void> {
+  await loadImages(map);
+
+  if (!map.getSource(SOURCE_ID)) {
+    map.addSource(SOURCE_ID, {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    });
+  }
+
+  if (!map.getLayer(SYM_LAYER_ID)) {
+    map.addLayer({
+      id: SYM_LAYER_ID,
+      type: 'symbol',
+      source: SOURCE_ID,
+      layout: {
+        'symbol-placement': 'point',
+        'icon-image': ['get', 'cellType'],
+        'icon-allow-overlap': true,
+        'icon-anchor': 'center',
+        // Replicates the canvas formula: imgSize = 14 * 2^(zoom - 13).
+        // icon-size is a multiplier of native image size (526 px).
+        // At zoom 13: 14/526 ≈ 0.0266; doubles every zoom level (base 2).
+        'icon-size': [
+          'interpolate', ['exponential', 2], ['zoom'],
+          13, 14 / 526,
+          17, (14 / 526) * 16,
+        ],
+      },
+    });
+  }
+
+  updateSource(map);
+}
+
+/**
+ * Removes all POI layers, source, and registered images from the map.
+ * Layers must be removed before their source per MapLibre's constraint.
+ *
+ * @param map - The MapLibre map instance.
+ */
+function teardown(map: MaplibreMap): void {
+  map.off('styledata', onStyleData);
+  if (map.getLayer(SYM_LAYER_ID)) map.removeLayer(SYM_LAYER_ID);
+  if (map.getSource(SOURCE_ID))   map.removeSource(SOURCE_ID);
+  IMAGE_DEFS.forEach(({ id }) => { if (map.hasImage(id)) map.removeImage(id); });
+}
+
+// `setStyle()` in MapPage.vue clears all sources, layers, and custom images.
+// Re-register everything when the new style finishes loading.
+const onStyleData = (): void => { if (props.map) setupLayers(props.map); };
+
+watch(
+  () => props.map,
+  async (map, oldMap) => {
+    if (oldMap) teardown(oldMap);
+    if (!map) return;
+    map.on('styledata', onStyleData);
+    await setupLayers(map);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [props.visibleCells, props.cellTypes] as const,
+  () => { if (props.map) updateSource(props.map); },
+  { deep: true },
+);
+
+onUnmounted(() => { if (props.map) teardown(props.map); });
+</script>

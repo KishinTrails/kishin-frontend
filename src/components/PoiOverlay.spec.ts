@@ -1,487 +1,303 @@
-import { mount, VueWrapper } from "@vue/test-utils";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import PoiOverlay from "@/components/PoiOverlay.vue";
-import { MockCanvasRenderingContext2D } from "@/__mocks__/canvas";
+import { mount, VueWrapper } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import PoiOverlay from '@/components/PoiOverlay.vue';
 
-type CellTypeKey = "peak" | "natural" | "industrial";
+type CellTypeKey = 'peak' | 'natural' | 'industrial';
 
-class MockImage {
-    src: string = "";
-    width: number = 24;
-    height: number = 24;
-    constructor() {
-        MockImage.instances.push(this);
-    }
-    static instances: MockImage[] = [];
-    static clearInstances() {
-        MockImage.instances = [];
-    }
-}
+// ─── Mock map factory ─────────────────────────────────────────────────────────
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const makeMap = () => {
+  const images = new Map<string, unknown>();
+  const sources = new Map<string, { setData: ReturnType<typeof vi.fn> }>();
+  const layers: string[] = [];
+  const listeners = new Map<string, Array<() => void>>();
 
-const makeMap = (): any => ({
-    project: vi.fn((_coord: [number, number]) => ({ x: 150, y: 75 })),
-    getZoom: vi.fn(() => 16),
-});
+  return {
+    loadImage: vi.fn().mockResolvedValue({ data: {} }),
+    addImage:  vi.fn((id: string, data: unknown) => images.set(id, data)),
+    hasImage:  vi.fn((id: string) => images.has(id)),
+    removeImage: vi.fn((id: string) => images.delete(id)),
 
-/**
- * Mount PoiOverlay and wait for onMounted to complete.
- */
-const mountOverlay = async (props: { map?: any; cellTypes: Map<string, CellTypeKey>; visibleCells: string[] }) => {
-    const wrapper = mount(PoiOverlay, { props });
-    await wrapper.vm.$nextTick();
-    return wrapper;
+    addSource:    vi.fn((id: string) => sources.set(id, { setData: vi.fn() })),
+    getSource:    vi.fn((id: string) => sources.get(id)),
+    removeSource: vi.fn((id: string) => sources.delete(id)),
+
+    addLayer:    vi.fn((l: { id: string }) => layers.push(l.id)),
+    getLayer:    vi.fn((id: string) => (layers.includes(id) ? {} : undefined)),
+    removeLayer: vi.fn((id: string) => layers.splice(layers.indexOf(id), 1)),
+
+    on:  vi.fn((ev: string, cb: () => void) => {
+      if (!listeners.has(ev)) listeners.set(ev, []);
+      listeners.get(ev)!.push(cb);
+    }),
+    off: vi.fn((ev: string, cb: () => void) => {
+      const list = listeners.get(ev);
+      if (list) listeners.set(ev, list.filter(f => f !== cb));
+    }),
+
+    /** Test helper: fire all listeners for an event. */
+    emit: (ev: string) => listeners.get(ev)?.forEach(cb => cb()),
+  };
+};
+
+type MockMap = ReturnType<typeof makeMap>;
+
+// ─── Mount helper ─────────────────────────────────────────────────────────────
+
+const mountOverlay = async (props: {
+  map?: MockMap;
+  cellTypes: Map<string, CellTypeKey>;
+  visibleCells: string[];
+}) => {
+  const wrapper = mount(PoiOverlay, { props: props as any });
+  await wrapper.vm.$nextTick();
+  // Flush micro-tasks so async setupLayers / loadImages resolves.
+  await new Promise(r => setTimeout(r, 0));
+  return wrapper;
 };
 
 // ─── Suite ────────────────────────────────────────────────────────────────────
 
-describe("PoiOverlay", () => {
-    let mockMap: ReturnType<typeof makeMap>;
-    let mockContext: MockCanvasRenderingContext2D;
-    let wrapper: VueWrapper<any>;
+describe('PoiOverlay', () => {
+  let mockMap: MockMap;
+  let wrapper: VueWrapper<any>;
 
-    beforeEach(() => {
-        MockImage.clearInstances();
+  beforeEach(() => { mockMap = makeMap(); });
 
-        mockMap = makeMap();
+  afterEach(async () => {
+    await wrapper?.unmount();
+    vi.clearAllMocks();
+  });
 
-        mockContext = new MockCanvasRenderingContext2D();
-        (HTMLCanvasElement.prototype.getContext as any) = (_type: string) => (_type === "2d" ? mockContext : null);
+  // ── Template ──────────────────────────────────────────────────────────────
 
-        // Freeze the animation loop — draw() is still callable manually
-        // and via watch, but animate() never re-schedules itself.
-        vi.spyOn(window, "requestAnimationFrame").mockReturnValue(0);
-        vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
-
-        vi.stubGlobal("Image", MockImage);
-
-        Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 1920 });
-        Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 1080 });
+  describe('Template', () => {
+    it('renders no DOM element', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect(wrapper.find('canvas').exists()).toBe(false);
     });
 
-    afterEach(async () => {
-        await wrapper?.unmount();
-        vi.clearAllMocks();
-        vi.restoreAllMocks();
-        mockContext.clearHistory();
+    it('does not expose a draw method', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect((wrapper.vm as any).draw).toBeUndefined();
+    });
+  });
+
+  // ── Source and layer registration ─────────────────────────────────────────
+
+  describe('Layer setup', () => {
+    it('adds the poi-cells GeoJSON source when map is provided', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect(mockMap.addSource).toHaveBeenCalledWith('poi-cells', expect.objectContaining({ type: 'geojson' }));
     });
 
-    // ── Rendering ─────────────────────────────────────────────────────────────
-
-    describe("Rendering", () => {
-        it("renders canvas element with correct class", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(wrapper.find("canvas.poi-overlay").exists()).toBe(true);
-        });
-
-        it("accepts and exposes cellTypes prop", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-
-            expect(wrapper.props("cellTypes")).toEqual(cellTypes);
-        });
-
-        it("accepts map prop", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(wrapper.props("map")).toEqual(mockMap);
-        });
-
-        it("exposes draw method", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(typeof wrapper.vm.draw).toBe("function");
-        });
+    it('adds the poi-icons symbol layer', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect(mockMap.addLayer).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'poi-icons', type: 'symbol', source: 'poi-cells' }),
+      );
     });
 
-    // ── Canvas Initialization ─────────────────────────────────────────────────
+    it('does not add source or layers when map is undefined', async () => {
+      wrapper = await mountOverlay({ map: undefined, cellTypes: new Map(), visibleCells: [] });
+      expect(mockMap.addSource).not.toHaveBeenCalled();
+      expect(mockMap.addLayer).not.toHaveBeenCalled();
+    });
+  });
 
-    describe("Canvas Initialization", () => {
-        it("gets 2d context on mount", async () => {
-            const getContextSpy = vi.fn().mockReturnValue(mockContext);
-            HTMLCanvasElement.prototype.getContext = getContextSpy;
+  // ── Image loading ─────────────────────────────────────────────────────────
 
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(getContextSpy).toHaveBeenCalledWith("2d");
-        });
-
-        it("resizes canvas to client dimensions on mount", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            const canvas = wrapper.find("canvas").element as HTMLCanvasElement;
-            expect(canvas.width).toBe(1920);
-            expect(canvas.height).toBe(1080);
-        });
-
-        it("updates canvas dimensions on window resize", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 1280 });
-            Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 720 });
-            window.dispatchEvent(new Event("resize"));
-            await wrapper.vm.$nextTick();
-
-            const canvas = wrapper.find("canvas").element as HTMLCanvasElement;
-            expect(canvas.width).toBe(1280);
-            expect(canvas.height).toBe(720);
-        });
-
-        it("adds resize event listener on mount", async () => {
-            const spy = vi.spyOn(window, "addEventListener");
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(spy).toHaveBeenCalledWith("resize", expect.any(Function));
-        });
-
-        it("removes resize event listener on unmount", async () => {
-            const spy = vi.spyOn(window, "removeEventListener");
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-            await wrapper.unmount();
-
-            expect(spy).toHaveBeenCalledWith("resize", expect.any(Function));
-        });
-
-        // it("cancels animation frame on unmount", async () => {
-        //     wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-        //     await wrapper.unmount();
-        //
-        //     expect(window.cancelAnimationFrame).toHaveBeenCalled();
-        // });
-
-        it("starts the animation loop on mount", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(window.requestAnimationFrame).toHaveBeenCalled();
-        });
+  describe('Image loading', () => {
+    it('calls loadImage for all three icon URLs', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect(mockMap.loadImage).toHaveBeenCalledWith('/tori.png');
+      expect(mockMap.loadImage).toHaveBeenCalledWith('/nature.png');
+      expect(mockMap.loadImage).toHaveBeenCalledWith('/factory.png');
     });
 
-    // ── Image Loading ─────────────────────────────────────────────────────────
-
-    describe("Image Loading", () => {
-        it("loads exactly 3 images on mount (peak, natural, industrial)", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(MockImage.instances.length).toBe(3);
-        });
-
-        it("sets correct src for peak image", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(MockImage.instances[0].src).toBe("/tori.png");
-        });
-
-        it("sets correct src for natural image", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(MockImage.instances[1].src).toBe("/nature.png");
-        });
-
-        it("sets correct src for industrial image", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-
-            expect(MockImage.instances[2].src).toBe("/factory.png");
-        });
+    it('registers images with the correct ids', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect(mockMap.addImage).toHaveBeenCalledWith('peak', expect.anything());
+      expect(mockMap.addImage).toHaveBeenCalledWith('natural', expect.anything());
+      expect(mockMap.addImage).toHaveBeenCalledWith('industrial', expect.anything());
     });
 
-    // ── Drawing Operations ────────────────────────────────────────────────────
+    it('skips loadImage for already-registered images', async () => {
+      mockMap.hasImage.mockImplementation((id: string) => id === 'peak');
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      const urls = mockMap.loadImage.mock.calls.map((c: any[]) => c[0]);
+      expect(urls).not.toContain('/tori.png');
+      expect(urls).toContain('/nature.png');
+      expect(urls).toContain('/factory.png');
+    });
+  });
 
-    describe("Drawing Operations", () => {
-        it("clears the full canvas on each draw", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-            mockContext.clearHistory();
+  // ── GeoJSON data ──────────────────────────────────────────────────────────
 
-            wrapper.vm.draw();
+  describe('GeoJSON source data', () => {
+    it('calls setData with a FeatureCollection containing one feature per POI cell', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['1', 'peak'], ['2', 'natural']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ['1', '2'] });
 
-            const calls = mockContext.getCallsByMethod("clearRect");
-            expect(calls.length).toBe(1);
-            expect(calls[0].args).toEqual([0, 0, expect.any(Number), expect.any(Number)]);
-        });
-
-        it("calls beginPath once per visible cell with a known type", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([
-                ["1", "peak"],
-                ["2", "natural"],
-            ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(1);
-        });
-
-        it("calls drawImage once per visible cell with a known type", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([
-                ["1", "peak"],
-                ["2", "natural"],
-            ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("drawImage").length).toBe(1);
-        });
-
-        it("calls stroke once per visible cell with a known type", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([
-                ["1", "peak"],
-                ["2", "natural"],
-            ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("stroke").length).toBe(1);
-        });
-
-        it("skips cells whose type is not in cellTypes", async () => {
-            // 1 is visible but has no entry in cellTypes
-            const cellTypes = new Map<string, CellTypeKey>();
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(0);
-            expect(mockContext.getCallsByMethod("stroke").length).toBe(0);
-            expect(mockContext.getCallsByMethod("drawImage").length).toBe(0);
-        });
-
-        it("skips cells with an empty S2 boundary (invalid cell)", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["invalid", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["invalid"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(0);
-            expect(mockContext.getCallsByMethod("stroke").length).toBe(0);
-            expect(mockContext.getCallsByMethod("drawImage").length).toBe(0);
-        });
-
-        it("draws N markers for N visible cells with known types", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([
-                ["1", "peak"],
-                ["2", "natural"],
-                ["3", "industrial"],
-            ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1", "2", "3"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(3);
-            expect(mockContext.getCallsByMethod("drawImage").length).toBe(3);
-        });
-
-        it("only draws cells listed in visibleCells, not all cells in cellTypes", async () => {
-            // cellTypes has 2 entries but only 1 is visible
-            const cellTypes = new Map<string, CellTypeKey>([
-                ["1", "peak"],
-                ["2", "natural"],
-            ]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(1);
-        });
-
-        it("scales the marker image size correctly based on zoom", async () => {
-            mockMap.getZoom.mockReturnValue(16);
-            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            const drawImageCalls = mockContext.getCallsByMethod("drawImage");
-            expect(drawImageCalls.length).toBe(1);
-
-            const expectedSize = 14 * Math.pow(2, 16 - 13); // 112
-            // args: [image, x, y, width, height]
-            expect(drawImageCalls[0].args[3]).toBe(expectedSize);
-            expect(drawImageCalls[0].args[4]).toBe(expectedSize);
-        });
-
-        it("does not draw when map is undefined", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
-            wrapper = await mountOverlay({ map: undefined, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("clearRect").length).toBe(0);
-        });
-
-        it("does not draw when canvas context is unavailable", async () => {
-            HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
-            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("clearRect").length).toBe(0);
-        });
+      const source = mockMap.getSource('poi-cells');
+      const call = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0];
+      expect(call.type).toBe('FeatureCollection');
+      expect(call.features).toHaveLength(2);
     });
 
-    // ── Cell Type Rendering ───────────────────────────────────────────────────
+    it('sets the cellType property on each feature', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['1', 'peak']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ['1'] });
 
-    describe("Cell Type Rendering", () => {
-        it("draws the peak image (instances[0]) for a peak cell", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            const drawImageCalls = mockContext.getCallsByMethod("drawImage");
-            expect(drawImageCalls.length).toBe(1);
-            expect(drawImageCalls[0].args[0]).toStrictEqual(MockImage.instances[0]);
-        });
-
-        it("draws the natural image (instances[1]) for a natural cell", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["1", "natural"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            const drawImageCalls = mockContext.getCallsByMethod("drawImage");
-            expect(drawImageCalls.length).toBe(1);
-            expect(drawImageCalls[0].args[0]).toStrictEqual(MockImage.instances[1]);
-        });
-
-        it("draws the industrial image (instances[2]) for an industrial cell", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["1", "industrial"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            const drawImageCalls = mockContext.getCallsByMethod("drawImage");
-            expect(drawImageCalls.length).toBe(1);
-            expect(drawImageCalls[0].args[0]).toStrictEqual(MockImage.instances[2]);
-        });
-
-        it("handles multiple cells with different types", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([
-                ["1", "peak"],
-                ["2", "natural"],
-                ["3", "industrial"],
-            ]);
-
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1", "2", "3"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(3);
-            expect(mockContext.getCallsByMethod("drawImage").length).toBe(3);
-        });
+      const source = mockMap.getSource('poi-cells');
+      const call = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0];
+      expect(call.features[0].properties.cellType).toBe('peak');
     });
 
-    // ── Reactivity ────────────────────────────────────────────────────────────
+    it('produces Polygon geometry', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['1', 'peak']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ['1'] });
 
-    describe("Reactivity", () => {
-        it("redraws when visibleCells changes", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: [] });
-            mockContext.clearHistory();
-
-            await wrapper.setProps({ visibleCells: ["1"] });
-            await wrapper.vm.$nextTick();
-
-            // watch triggers exactly one draw() with one cell
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(1);
-        });
-
-        it("does NOT redraws when ONLY cellTypes changes", async () => {
-            wrapper = await mountOverlay({
-                map: mockMap,
-                cellTypes: new Map<string, CellTypeKey>([["1", "peak"]]),
-                visibleCells: [],
-            });
-            mockContext.clearHistory();
-
-            const newCellTypes = new Map<string, CellTypeKey>([["2", "natural"]]);
-            await wrapper.setProps({ cellTypes: newCellTypes, visibleCells: ["1"] });
-            await wrapper.vm.$nextTick();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(0);
-        });
-
-        it("redraws when cellTypes and visibleCells change together", async () => {
-            wrapper = await mountOverlay({
-                map: mockMap,
-                cellTypes: new Map<string, CellTypeKey>([["1", "peak"]]),
-                visibleCells: [],
-            });
-            mockContext.clearHistory();
-
-            const newCellTypes = new Map<string, CellTypeKey>([["2", "natural"]]);
-            await wrapper.setProps({ cellTypes: newCellTypes, visibleCells: ["2"] });
-            await wrapper.vm.$nextTick();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(1);
-        });
-
-        it("clears markers when visibleCells becomes empty", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
-            wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            await wrapper.setProps({ visibleCells: [] });
-            await wrapper.vm.$nextTick();
-
-            // draw() is called but no cells to render
-            expect(mockContext.getCallsByMethod("clearRect").length).toBe(1);
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(0);
-        });
+      const source = mockMap.getSource('poi-cells');
+      const call = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0];
+      expect(call.features[0].geometry.type).toBe('Polygon');
     });
 
-    // ── Manual Draw ───────────────────────────────────────────────────────────
+    it('closes the polygon ring (first === last coordinate)', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['1', 'peak']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ['1'] });
 
-    describe("Manual Draw Method", () => {
-        it("clears and redraws when called manually", async () => {
-            wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("clearRect").length).toBe(1);
-        });
-
-        it("does nothing without map", async () => {
-            const cellTypes = new Map<string, CellTypeKey>([["1", "peak"]]);
-            wrapper = await mountOverlay({ map: undefined, cellTypes, visibleCells: ["1"] });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("beginPath").length).toBe(0);
-            expect(mockContext.getCallsByMethod("clearRect").length).toBe(0);
-        });
-
-        it("does nothing without context", async () => {
-            HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
-            wrapper = await mountOverlay({
-                map: mockMap,
-                cellTypes: new Map<string, CellTypeKey>([["1", "peak"]]),
-                visibleCells: ["1"],
-            });
-            mockContext.clearHistory();
-
-            wrapper.vm.draw();
-
-            expect(mockContext.getCallsByMethod("clearRect").length).toBe(0);
-        });
+      const source = mockMap.getSource('poi-cells');
+      const ring: number[][] = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0].features[0].geometry.coordinates[0];
+      expect(ring.at(-1)).toEqual(ring[0]);
     });
+
+    it('uses [lng, lat] coordinate order', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['1', 'peak']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ['1'] });
+
+      const source = mockMap.getSource('poi-cells');
+      const ring: number[][] = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0].features[0].geometry.coordinates[0];
+      // Longitude is the first element; for reasonable coordinates lng is in [-180, 180]
+      // and lat in [-90, 90]. Cell token "1" is a valid S2 token near the equator.
+      ring.slice(0, -1).forEach(coord => {
+        expect(coord).toHaveLength(2);
+        expect(Math.abs(coord[0])).toBeLessThanOrEqual(180); // lng
+        expect(Math.abs(coord[1])).toBeLessThanOrEqual(90);  // lat
+      });
+    });
+
+    it('skips cells absent from cellTypes', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: ['1'] });
+
+      const source = mockMap.getSource('poi-cells');
+      const call = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0];
+      expect(call.features).toHaveLength(0);
+    });
+
+    it('skips cells with invalid S2 tokens', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['not-a-valid-token', 'peak']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ['not-a-valid-token'] });
+
+      const source = mockMap.getSource('poi-cells');
+      const call = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0];
+      expect(call.features).toHaveLength(0);
+    });
+
+    it('only includes visibleCells, not all entries in cellTypes', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['1', 'peak'], ['2', 'natural']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ['1'] });
+
+      const source = mockMap.getSource('poi-cells');
+      const call = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0];
+      expect(call.features).toHaveLength(1);
+    });
+  });
+
+  // ── Reactivity ────────────────────────────────────────────────────────────
+
+  describe('Reactivity', () => {
+    it('calls setData when visibleCells changes', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['1', 'peak']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: [] });
+
+      const source = mockMap.getSource('poi-cells');
+      const callsBefore = source!.setData.mock.calls.length;
+
+      await wrapper.setProps({ visibleCells: ['1'] });
+      await wrapper.vm.$nextTick();
+
+      expect(source!.setData.mock.calls.length).toBeGreaterThan(callsBefore);
+      const latest = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0];
+      expect(latest.features).toHaveLength(1);
+    });
+
+    it('calls setData with empty features when visibleCells becomes empty', async () => {
+      const cellTypes = new Map<string, CellTypeKey>([['1', 'peak']]);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes, visibleCells: ['1'] });
+
+      await wrapper.setProps({ visibleCells: [] });
+      await wrapper.vm.$nextTick();
+
+      const source = mockMap.getSource('poi-cells');
+      const latest = source!.setData.mock.calls[source!.setData.mock.calls.length - 1]![0];
+      expect(latest.features).toHaveLength(0);
+    });
+  });
+
+  // ── Style reload ──────────────────────────────────────────────────────────
+
+  describe('Style reload', () => {
+    it('re-registers source and layers after styledata event', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+
+      // Simulate setStyle() clearing everything
+      mockMap.getSource.mockReturnValue(undefined);
+      mockMap.getLayer.mockReturnValue(undefined);
+      mockMap.hasImage.mockReturnValue(false);
+      mockMap.addSource.mockClear();
+      mockMap.addLayer.mockClear();
+      mockMap.loadImage.mockClear();
+
+      mockMap.emit('styledata');
+      await new Promise(r => setTimeout(r, 0));
+
+      expect(mockMap.addSource).toHaveBeenCalledWith('poi-cells', expect.anything());
+      expect(mockMap.addLayer).toHaveBeenCalledTimes(1);
+      expect(mockMap.loadImage).toHaveBeenCalledTimes(3);
+    });
+
+    it('listens to styledata event on map arrival', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect(mockMap.on).toHaveBeenCalledWith('styledata', expect.any(Function));
+    });
+  });
+
+  // ── Teardown ──────────────────────────────────────────────────────────────
+
+  describe('Teardown', () => {
+    it('removes layers and source on unmount', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      await wrapper.unmount();
+
+      expect(mockMap.removeLayer).toHaveBeenCalledWith('poi-icons');
+      expect(mockMap.removeSource).toHaveBeenCalledWith('poi-cells');
+    });
+
+    it('removes registered images on unmount', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      await wrapper.unmount();
+
+      expect(mockMap.removeImage).toHaveBeenCalledWith('peak');
+      expect(mockMap.removeImage).toHaveBeenCalledWith('natural');
+      expect(mockMap.removeImage).toHaveBeenCalledWith('industrial');
+    });
+
+    it('deregisters the styledata listener on unmount', async () => {
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      await wrapper.unmount();
+
+      expect(mockMap.off).toHaveBeenCalledWith('styledata', expect.any(Function));
+    });
+  });
 });
