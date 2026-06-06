@@ -310,6 +310,7 @@ import TileSelectOverlay from '@/components/TileSelectOverlay.vue';
 import { useTrailMap } from '@/composables/useTrailMap';
 import { useTrailTracker } from '@/composables/useTrailTracker';
 import { logout } from '@/services/authService';
+import { saveMapStyle, loadMapStyle, styleToThemeClass } from '@/services/mapStyleService';
 import GpsTracker from '@/components/GpsTracker.vue';
 import { randomColor } from '@/utils/color';
 import { cellFromLatLng, cellToToken } from '@/utils/s2Utils';
@@ -359,7 +360,7 @@ const STYLE_MAP = {
 
 const showFog = ref(true);
 const fogMode = ref<'flat' | 'gradient'>('flat');
-const mapStyle = ref<'standard' | 'ukiyo-e' | 'ukiyo-toner'>('ukiyo-toner');
+const mapStyle = ref(loadMapStyle());
 const showControls = ref(window.innerWidth >= 768);
 const showPoi = ref(true);
 const showPerlin = ref(false);
@@ -383,9 +384,7 @@ const {
 
 const { lastPosition } = useTrailTracker();
 
-const controlsTheme = computed(() =>
-  mapStyle.value === 'standard' ? 'theme-standard' : 'theme-ukiyo'
-);
+const controlsTheme = computed(() => styleToThemeClass(mapStyle.value));
 
 const router = useRouter();
 
@@ -421,6 +420,7 @@ watch(lastPosition, (pos) => {
 });
 
 watch(mapStyle, (style) => {
+  saveMapStyle(style);
   if (!map.value) return;
   map.value.setStyle(STYLE_MAP[style]);
 });
