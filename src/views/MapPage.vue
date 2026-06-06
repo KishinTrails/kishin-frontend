@@ -42,34 +42,42 @@
         />
         <GpsTracker style="position: absolute; bottom: 20px; right: 20px; z-index: 2;" />
 
-        <div class="controls">
-          <h3>🗺️ Trail Map</h3>
+        <button
+          v-if="!showControls"
+          class="controls-toggle"
+          :class="controlsTheme"
+          @click="showControls = true"
+        >
+          ☰
+        </button>
 
-          <div class="map-style-radios">
-            <label class="toggle-item">
-              <input
-                v-model="mapStyle"
-                type="radio"
-                value="standard"
-              >
-              <span>Standard</span>
-            </label>
-            <label class="toggle-item">
-              <input
-                v-model="mapStyle"
-                type="radio"
-                value="ukiyo-e"
-              >
-              <span>Ukiyo-e</span>
-            </label>
-            <label class="toggle-item">
-              <input
-                v-model="mapStyle"
-                type="radio"
-                value="ukiyo-toner"
-              >
-              <span>Ukiyo Toner</span>
-            </label>
+        <div
+          v-show="showControls"
+          class="controls"
+          :class="controlsTheme"
+        >
+          <div class="controls-header">
+            <h3>Kishin Trails</h3>
+            <button
+              class="controls-close"
+              @click="showControls = false"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div class="map-style-select">
+            <select v-model="mapStyle">
+              <option value="standard">
+                Standard
+              </option>
+              <option value="ukiyo-e">
+                Ukiyo-e
+              </option>
+              <option value="ukiyo-toner">
+                Ukiyo Toner
+              </option>
+            </select>
           </div>
 
           <div class="toggles">
@@ -343,9 +351,16 @@ const fogCenter = computed(() =>
     : { lat: MAP_CENTER[1], lng: MAP_CENTER[0] }
 );
 
+const STYLE_MAP = {
+  'standard':    STANDARD_STYLE,
+  'ukiyo-e':     ukiyoEStyle,
+  'ukiyo-toner': ukiyoeTonerStyle,
+} as const;
+
 const showFog = ref(true);
 const fogMode = ref<'flat' | 'gradient'>('flat');
-const mapStyle = ref<'standard' | 'ukiyo-e' | 'ukiyo-toner'>('standard');
+const mapStyle = ref<'standard' | 'ukiyo-e' | 'ukiyo-toner'>('ukiyo-toner');
+const showControls = ref(window.innerWidth >= 768);
 const showPoi = ref(true);
 const showPerlin = ref(false);
 const showTileSelect = ref(false);
@@ -367,6 +382,10 @@ const {
 } = useTrailMap();
 
 const { lastPosition } = useTrailTracker();
+
+const controlsTheme = computed(() =>
+  mapStyle.value === 'standard' ? 'theme-standard' : 'theme-ukiyo'
+);
 
 const router = useRouter();
 
@@ -403,12 +422,7 @@ watch(lastPosition, (pos) => {
 
 watch(mapStyle, (style) => {
   if (!map.value) return;
-  const styleMap = {
-    'standard':    STANDARD_STYLE,
-    'ukiyo-e':     ukiyoEStyle,
-    'ukiyo-toner': ukiyoeTonerStyle,
-  };
-  map.value.setStyle(styleMap[style]);
+  map.value.setStyle(STYLE_MAP[style]);
 });
 
 const handleLogout = () => {
@@ -437,7 +451,7 @@ const initMap = (): void => {
 
   map.value = new maplibregl.Map({
     container: mapContainer.value,
-    style: STANDARD_STYLE,
+    style: STYLE_MAP[mapStyle.value],
     center: MAP_CENTER,
     zoom: MAP_ZOOM,
   });
@@ -528,6 +542,52 @@ const clearAllGroupCells = () => {
 </script>
 
 <style scoped>
+/* ── Theme tokens ────────────────────────────────────────────────────────────
+   Defined on .controls so all descendant rules can inherit via var().        */
+.theme-standard {
+  --c-bg:               white;
+  --c-bg-input:         white;
+  --c-bg-list:          #f8f8f8;
+  --c-panel-border:     transparent;
+  --c-divider:          #eee;
+  --c-input-border:     #ccc;
+  --c-box-shadow:       0 2px 10px rgba(0, 0, 0, 0.3);
+  --c-text:             #333;
+  --c-text-sub:         #555;
+  --c-text-muted:       #666;
+  --c-text-btn:         white;
+  --c-accent:           #3498db;
+  --c-btn-validate:     #27ae60;
+  --c-btn-validate-h:   #219a52;
+  --c-btn-clear:        #e74c3c;
+  --c-btn-clear-h:      #c0392b;
+  --c-btn-logout:       #95a5a6;
+  --c-btn-logout-h:     #7f8c8d;
+}
+
+/* ukiyo-e palette: washi paper / sumi ink / prussian blue / ochre / parchment */
+.theme-ukiyo {
+  --c-bg:               #E8D5A3;
+  --c-bg-input:         #F0E4BB;
+  --c-bg-list:          #DEC98E;
+  --c-panel-border:     #B4A07A;
+  --c-divider:          #B4A07A;
+  --c-input-border:     #B4A07A;
+  --c-box-shadow:       0 3px 14px rgba(26, 43, 77, 0.22);
+  --c-text:             #1A2B4D;
+  --c-text-sub:         #1A2B4D;
+  --c-text-muted:       #6B5A3E;
+  --c-text-btn:         #E8D5A3;
+  --c-accent:           #4A6B8A;
+  --c-btn-validate:     #4A6B8A;
+  --c-btn-validate-h:   #3A5570;
+  --c-btn-clear:        #8B6914;
+  --c-btn-clear-h:      #6B4F10;
+  --c-btn-logout:       #6B5A3E;
+  --c-btn-logout-h:     #4E4230;
+}
+
+/* ── Map layout ────────────────────────────────────────────────────────────── */
 .map-container {
   width: 100%;
   height: 100%;
@@ -540,36 +600,89 @@ const clearAllGroupCells = () => {
   height: 100%;
 }
 
+/* ── Controls panel ────────────────────────────────────────────────────────── */
 .controls {
   position: absolute;
   top: 20px;
   left: 20px;
-  background: white;
+  background: var(--c-bg);
   padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  border: 1px solid var(--c-panel-border);
+  box-shadow: var(--c-box-shadow);
   z-index: 2;
   max-width: 300px;
+  transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
 }
 
-.controls h3 {
-  margin: 0 0 15px 0;
+.controls-toggle {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--c-panel-border);
+  border-radius: 6px;
+  background: var(--c-bg);
+  color: var(--c-text);
+  box-shadow: var(--c-box-shadow);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+.controls-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 15px;
+}
+
+.controls-header h3 {
+  margin: 0;
   font-size: 16px;
-  color: #333;
+  color: var(--c-text);
+}
+
+.controls-close {
+  background: none;
+  border: none;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--c-text-muted);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+.controls-close:hover {
+  color: var(--c-text);
+  background: var(--c-divider);
 }
 
 .toggles {
   margin-bottom: 15px;
   padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--c-divider);
 }
 
-.map-style-radios {
-  display: flex;
-  gap: 12px;
+.map-style-select {
   margin-bottom: 10px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--c-divider);
+}
+
+.map-style-select select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--c-input-border);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--c-text);
+  background: var(--c-bg-input);
+  cursor: pointer;
 }
 
 .fog-mode-radios {
@@ -581,25 +694,27 @@ const clearAllGroupCells = () => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #555;
+  color: var(--c-text-sub);
   cursor: pointer;
   padding: 4px 0;
 }
 
-.toggle-item input[type="checkbox"] {
+.toggle-item input[type="checkbox"],
+.toggle-item input[type="radio"] {
   cursor: pointer;
+  accent-color: var(--c-accent);
 }
 
 .perlin-controls {
   margin-top: 15px;
   padding-top: 15px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--c-divider);
 }
 
 .perlin-controls h4 {
   margin: 0 0 10px 0;
   font-size: 14px;
-  color: #444;
+  color: var(--c-text);
 }
 
 .input-group {
@@ -611,21 +726,24 @@ const clearAllGroupCells = () => {
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
-  color: #666;
+  color: var(--c-text-muted);
 }
 
 .input-group input[type="number"] {
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--c-input-border);
   border-radius: 4px;
   font-size: 12px;
+  background: var(--c-bg-input);
+  color: var(--c-text);
 }
 
 .input-group input[type="file"] {
   width: 100%;
   padding: 4px 0;
   font-size: 12px;
+  color: var(--c-text-sub);
 }
 
 .input-group .toggle-item {
@@ -636,7 +754,7 @@ const clearAllGroupCells = () => {
 .tile-select-controls {
   margin-top: 15px;
   padding-top: 15px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--c-divider);
 }
 
 .button-group {
@@ -656,35 +774,41 @@ const clearAllGroupCells = () => {
 }
 
 .btn-clear {
-  background-color: #e74c3c;
-  color: white;
+  background-color: var(--c-btn-clear);
+  color: var(--c-text-btn);
 }
 
 .btn-clear:hover {
-  background-color: #c0392b;
+  background-color: var(--c-btn-clear-h);
 }
 
 .btn-validate {
-  background-color: #27ae60;
-  color: white;
+  background-color: var(--c-btn-validate);
+  color: var(--c-text-btn);
 }
 
 .btn-validate:hover {
-  background-color: #219a52;
+  background-color: var(--c-btn-validate-h);
 }
 
 .tile-groups-list {
   margin: 12px 0;
   padding: 10px;
-  background: #f8f8f8;
+  background: var(--c-bg-list);
+  border: 1px solid var(--c-divider);
   border-radius: 4px;
 }
 
 .group-header {
   font-size: 12px;
   font-weight: 600;
-  color: #444;
+  color: var(--c-text);
   margin-bottom: 8px;
+}
+
+.theme-ukiyo .group-header {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .tile-group-item {
@@ -700,12 +824,13 @@ const clearAllGroupCells = () => {
   gap: 6px;
   cursor: pointer;
   font-size: 12px;
-  color: #555;
+  color: var(--c-text-sub);
   flex: 1;
 }
 
 .tile-group-item input[type="checkbox"] {
   cursor: pointer;
+  accent-color: var(--c-accent);
 }
 
 .group-color {
@@ -723,7 +848,7 @@ const clearAllGroupCells = () => {
 
 .group-type {
   font-size: 10px;
-  color: #888;
+  color: var(--c-text-muted);
   margin-left: 4px;
   flex-shrink: 0;
 }
@@ -736,13 +861,13 @@ const clearAllGroupCells = () => {
   border-radius: 4px;
   font-size: 12px;
   cursor: pointer;
-  background-color: #3498db;
-  color: white;
+  background-color: var(--c-accent);
+  color: var(--c-text-btn);
   transition: background-color 0.2s;
 }
 
 .btn-select-groups:hover {
-  background-color: #2980b9;
+  background-color: var(--c-btn-validate-h);
 }
 
 .btn-logout {
@@ -753,24 +878,24 @@ const clearAllGroupCells = () => {
   font-size: 12px;
   cursor: pointer;
   transition: background-color 0.2s;
-  background-color: #95a5a6;
-  color: white;
+  background-color: var(--c-btn-logout);
+  color: var(--c-text-btn);
   margin-top: 15px;
 }
 
 .btn-logout:hover {
-  background-color: #7f8c8d;
+  background-color: var(--c-btn-logout-h);
 }
 
 .stats {
   margin-top: 15px;
   padding-top: 15px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--c-divider);
 }
 
 .stat-item {
   font-size: 12px;
-  color: #666;
+  color: var(--c-text-muted);
   padding: 4px 0;
 }
 
@@ -788,7 +913,8 @@ ion-content {
 }
 
 @supports (padding: max(0px)) {
-  .controls {
+  .controls,
+  .controls-toggle {
     top: max(20px, env(safe-area-inset-top));
     left: max(20px, env(safe-area-inset-left));
   }
