@@ -29,7 +29,7 @@
           v-if="showPoi"
           :map="map"
           :cell-types="cellTypes"
-          :visible-cells="visibleExplored"
+          :visible-cells="filterByExplored ? visibleExplored : visibleCells"
         />
         <TileSelectOverlay
           v-if="showTileSelect"
@@ -372,15 +372,24 @@ const cellToGroup = ref<Map<string, number>>(new Map());
 
 const {
   visitedCells,
+  visibleCells,
   visibleExplored,
-  
   cellTypes,
   filterByExplored,
   loadExploredTiles,
   updateVisibleCells,
   debouncedUpdate,
   fetchCellTypes,
+  fetchCellTypeForNewExplored,
 } = useTrailMap();
+
+/**
+ * True when any active feature needs full viewport S2 cell enumeration.
+ * Add new modes that require cellsFromBounds here.
+ */
+const needsEnumeration = computed(() =>
+  !filterByExplored.value && (showPoi.value || showTileSelect.value)
+);
 
 const { lastPosition } = useTrailTracker();
 
@@ -416,13 +425,21 @@ watch(lastPosition, (pos) => {
   }
 
   const cell = cellFromLatLng(pos.latitude, pos.longitude);
-  visitedCells.value.add(cellToToken(cell));
+  const token = cellToToken(cell);
+  visitedCells.value.add(token);
+  fetchCellTypeForNewExplored(token);
 });
 
 watch(mapStyle, (style) => {
   saveMapStyle(style);
   if (!map.value) return;
   map.value.setStyle(STYLE_MAP[style]);
+});
+
+watch(needsEnumeration, () => {
+  if (!map.value) return;
+  updateVisibleCells(map.value.getBounds(), needsEnumeration.value);
+  fetchCellTypes();
 });
 
 const handleLogout = () => {
@@ -460,7 +477,7 @@ const initMap = (): void => {
 
   // Sync visible cells immediately once the map is ready
   map.value.on('load', () => {
-    updateVisibleCells(map.value!.getBounds());
+    updateVisibleCells(map.value!.getBounds(), needsEnumeration.value);
     fetchCellTypes();
   });
 
@@ -472,7 +489,7 @@ const initMap = (): void => {
 
   // Debounce updates during pan/zoom to limit API calls
   map.value.on('moveend', () => {
-    debouncedUpdate(map.value!.getBounds());
+    debouncedUpdate(map.value!.getBounds(), needsEnumeration.value);
   });
 
   resizeListener = () => map.value?.resize();

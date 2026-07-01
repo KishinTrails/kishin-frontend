@@ -51,6 +51,13 @@
               />
               <span v-else>Sign In</span>
             </ion-button>
+
+            <div
+              v-if="loadingMessage"
+              class="loading-message"
+            >
+              {{ loadingMessage }}
+            </div>
           </form>
         </div>
       </div>
@@ -69,6 +76,8 @@ import { IonPage, IonContent, IonItem, IonLabel, IonInput, IonButton, IonSpinner
 import { useRouter } from 'vue-router';
 import { login } from '@/services/authService';
 import { loadMapStyle, styleToThemeClass } from '@/services/mapStyleService';
+import { isPrefetchDone } from '@/services/cacheService';
+import { prefetchAllCells } from '@/services/poiService';
 
 const router = useRouter();
 
@@ -77,6 +86,7 @@ const theme = styleToThemeClass(loadMapStyle());
 const username = ref('');
 const password = ref('');
 const isLoading = ref(false);
+const loadingMessage = ref('');
 const errorMessage = ref('');
 
 /**
@@ -86,14 +96,20 @@ const errorMessage = ref('');
 const handleLogin = async () => {
   errorMessage.value = '';
   isLoading.value = true;
+  loadingMessage.value = '';
 
   try {
     await login(username.value, password.value);
+    if (!isPrefetchDone()) {
+      loadingMessage.value = 'Syncing map data…';
+      await prefetchAllCells();
+    }
     router.replace('/map');
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Login failed';
   } finally {
     isLoading.value = false;
+    loadingMessage.value = '';
   }
 };
 </script>
@@ -202,5 +218,12 @@ ion-button {
   padding: 10px;
   background: var(--c-error-bg);
   border-radius: 6px;
+}
+
+.loading-message {
+  font-size: 13px;
+  text-align: center;
+  margin-top: 12px;
+  color: var(--c-subtitle);
 }
 </style>

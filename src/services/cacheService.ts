@@ -6,6 +6,7 @@
 import { CellType } from "./poiService";
 
 const CACHE_KEY = "kishin_cell_cache";
+const PREFETCH_KEY = "kishin_prefetch_done";
 
 let cacheMap: Map<string, CellType> | null = null;
 
@@ -62,4 +63,30 @@ export function syncCacheToDisk(): void {
     } catch {
         // localStorage might be full or unavailable
     }
+}
+
+/**
+ * Clear the cell cache from both memory and localStorage, and reset the prefetch flag.
+ * Should be called on logout.
+ */
+export function clearCache(): void {
+    cacheMap = null;
+    localStorage.removeItem(CACHE_KEY);
+    localStorage.removeItem(PREFETCH_KEY);
+}
+
+/**
+ * Check whether the initial prefetch has already been completed.
+ *
+ * @returns True if the prefetch flag is set in localStorage.
+ */
+export function isPrefetchDone(): boolean {
+    return localStorage.getItem(PREFETCH_KEY) === "1";
+}
+
+/**
+ * Mark the prefetch as completed by setting a flag in localStorage.
+ */
+export function markPrefetchDone(): void {
+    localStorage.setItem(PREFETCH_KEY, "1");
 }

@@ -4,7 +4,7 @@
  */
 
 import { getToken } from "./authService";
-import { getCellTypeFromCache, setCellTypeInCache, syncCacheToDisk } from "./cacheService";
+import { getCellTypeFromCache, setCellTypeInCache, syncCacheToDisk, markPrefetchDone } from "./cacheService";
 
 /**
  * Type of POI/feature in an S2 cell.
@@ -48,6 +48,37 @@ interface FetchResult {
 
 const API_BASE = `${import.meta.env.VITE_API_BASE}/poi`;
 const BATCH_SIZE = 100;
+
+interface PrefetchResponse {
+    cells: { s2_cell_id: string; type: CellType }[];
+}
+
+/**
+ * Prefetch all active POI tiles from the API and populate the local cache.
+ * Intended to be called once after login. After this completes, cache misses
+ * should be treated as "none" rather than triggering further API calls.
+ *
+ * @param onProgress - Optional callback receiving progress as a value 0–100
+ */
+export async function prefetchAllCells(onProgress?: (pct: number) => void): Promise<void> {
+    const token = getToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    onProgress?.(0);
+    const response = await fetch(`${API_BASE}/prefetch`, { headers });
+    if (!response.ok) throw new Error(`Prefetch failed: ${response.status}`);
+
+    const data: PrefetchResponse = await response.json();
+    onProgress?.(50);
+
+    for (const cell of data.cells) {
+        setCellTypeInCache(cell.s2_cell_id, cell.type);
+    }
+    syncCacheToDisk();
+    markPrefetchDone();
+    onProgress?.(100);
+}
 
 /**
  * Fetch cell types for multiple S2 cells in batch.
