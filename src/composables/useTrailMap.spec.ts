@@ -15,6 +15,7 @@ vi.mock("@/services/poiService", () => ({
 
 vi.mock("@/services/cacheService", () => ({
     getCellTypeFromCache: vi.fn().mockReturnValue(null),
+    isPrefetchDone: vi.fn().mockReturnValue(false),
 }));
 
 // vi.mock("s2js", () => {
@@ -114,7 +115,7 @@ describe("useTrailMap", () => {
             const { result } = withSetup(useTrailMap);
             result.filterByExplored.value = false;
 
-            result.updateVisibleCells(makeBounds({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }));
+            result.updateVisibleCells(makeBounds({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }), true);
 
             expect(cellsFromBounds).toHaveBeenCalledWith({ lat: 1, lng: 2 }, { lat: 3, lng: 4 });
         });
@@ -157,14 +158,14 @@ describe("useTrailMap", () => {
             expect(result.visibleExplored.value).toEqual([]);
         });
 
-        it("also updates visibleCells with the full set in tile selection mode", async () => {
+        it("also updates visibleCells with the full set when enumerate is true", async () => {
             const { result } = withSetup(useTrailMap);
             result.filterByExplored.value = false;
 
-            result.updateVisibleCells(makeBounds());
+            result.updateVisibleCells(makeBounds(), true);
 
             expect(result.visibleCells.value).toEqual(["cell1", "cell2", "cell3"]);
-            expect(result.visibleExplored.value).toEqual(["cell1", "cell2", "cell3"]);
+            expect(result.visibleExplored.value).toEqual([]);
         });
     });
 
@@ -263,7 +264,7 @@ describe("useTrailMap", () => {
             const { result } = withSetup(useTrailMap);
             result.filterByExplored.value = false;
 
-            result.debouncedUpdate(makeBounds());
+            result.debouncedUpdate(makeBounds(), true);
 
             // Should be empty immediately
             expect(result.visibleCells.value).toEqual([]);
@@ -280,11 +281,11 @@ describe("useTrailMap", () => {
             const { result } = withSetup(useTrailMap);
             result.filterByExplored.value = false;
 
-            result.debouncedUpdate(makeBounds());
+            result.debouncedUpdate(makeBounds(), true);
             vi.advanceTimersByTime(200);
-            result.debouncedUpdate(makeBounds());
+            result.debouncedUpdate(makeBounds(), true);
             vi.advanceTimersByTime(200);
-            result.debouncedUpdate(makeBounds());
+            result.debouncedUpdate(makeBounds(), true);
 
             await vi.runAllTimersAsync();
 
@@ -297,7 +298,7 @@ describe("useTrailMap", () => {
             const { result } = withSetup(useTrailMap);
             const onDone = vi.fn();
 
-            result.debouncedUpdate(makeBounds(), onDone);
+            result.debouncedUpdate(makeBounds(), false, onDone);
             await vi.runAllTimersAsync();
 
             expect(onDone).toHaveBeenCalledOnce();

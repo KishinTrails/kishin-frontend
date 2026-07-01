@@ -3,6 +3,8 @@
  * Handles login/logout, JWT token storage, and authentication state.
  */
 
+import { clearCache } from "./cacheService";
+
 const TOKEN_KEY = "kishin_token";
 
 const API_BASE = `${import.meta.env.VITE_API_BASE}/auth`;
@@ -46,10 +48,11 @@ export async function login(username: string, password: string): Promise<void> {
 }
 
 /**
- * Log out the current user by removing the JWT token from localStorage.
+ * Log out the current user by removing the JWT token and clearing the POI cache.
  */
 export function logout(): void {
     localStorage.removeItem(TOKEN_KEY);
+    clearCache();
 }
 
 /**

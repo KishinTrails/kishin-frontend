@@ -5,8 +5,8 @@
 
 import { ref, onUnmounted } from "vue";
 import { cellsFromBounds, cellToToken, isCellInBounds } from "@/utils/s2Utils";
-import { fetchCellTypes as fetchCellTypesFromService } from "@/services/poiService";
-import { getCellTypeFromCache } from "@/services/cacheService";
+import { fetchCellTypes as fetchCellTypesFromService, fetchCellType as fetchCellTypeFromService } from "@/services/poiService";
+import { getCellTypeFromCache, isPrefetchDone } from "@/services/cacheService";
 import { fetchExploredTiles } from "@/services/trailsService";
 
 /**
@@ -61,60 +61,75 @@ export function useTrailMap() {
     };
 
     /**
-     * Compute visible explored and fog cells from current viewport bounds.
+     * Compute visible cells from the current viewport bounds.
      *
-     * Explore mode: iterate visitedCells and keep those within bounds.
-     * Tile selection mode: generate all cells in viewport bounds.
+     * Always populates visibleExplored with explored cells within the viewport.
+     *
+     * When enumerate is true, also populates visibleCells with every level-16
+     * S2 cell covering the viewport via RegionCoverer. This is expensive at low
+     * zoom levels and should only be requested when a consumer actually needs it
+     * (e.g. POI in non-explore mode, tile select overlay). Pass enumerate=false
+     * (the default) whenever those features are inactive to avoid the cost.
+     *
+     * @param bounds   - Current map viewport bounds.
+     * @param enumerate - Whether to run cellsFromBounds for full viewport coverage.
      */
-    const updateVisibleCells = (bounds: MapBounds): void => {
+    const updateVisibleCells = (bounds: MapBounds, enumerate = false): void => {
         const sw = bounds.getSouthWest();
         const ne = bounds.getNorthEast();
 
-        if (filterByExplored.value) {
-            const explored = Array.from(visitedCells.value).filter(cell =>
-                isCellInBounds(cell, sw, ne)
-            );
-            visibleCells.value = [];
-            visibleExplored.value = explored;
-            visibleFog.value = [];
-        } else {
-            const cells = cellsFromBounds(sw, ne).map(cellToToken);
-            visibleCells.value = cells;
-            visibleExplored.value = cells;
-            visibleFog.value = [];
-        }
+        visibleExplored.value = Array.from(visitedCells.value).filter(cell =>
+            isCellInBounds(cell, sw, ne)
+        );
+
+        visibleCells.value = enumerate
+            ? cellsFromBounds(sw, ne).map(cellToToken)
+            : [];
+
+        visibleFog.value = [];
     };
 
     /**
      * Debounced version of updateVisibleCells + fetchCellTypes.
      * Designed to be called on map move/zoom events.
+     *
+     * @param bounds    - Current map viewport bounds.
+     * @param enumerate - Whether to run cellsFromBounds (see updateVisibleCells).
+     * @param onDone    - Optional callback fired after the update completes.
      */
-    const debouncedUpdate = (bounds: MapBounds, onDone?: () => void): void => {
+    const debouncedUpdate = (bounds: MapBounds, enumerate = false, onDone?: () => void): void => {
         if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(async () => {
-            updateVisibleCells(bounds);
+            updateVisibleCells(bounds, enumerate);
             await fetchCellTypes();
             onDone?.();
         }, DEBOUNCE_DELAY);
     };
 
     /**
-     * Fetch POI types for visible explored cells, using cache when available.
+     * Fetch POI types for cells currently visible on the map.
+     * In explore mode, resolves types for visibleExplored (explored cells in viewport).
+     * In full-viewport mode, resolves types for visibleCells (all cells in viewport).
+     *
+     * Uses the local cache first. When the prefetch has been completed, cache
+     * misses are treated as "none" and no API call is made.
      * Aborts any in-flight request before issuing a new one.
      */
     const fetchCellTypes = async (): Promise<void> => {
         abortController?.abort();
         abortController = new AbortController();
 
+        const prefetchDone = isPrefetchDone();
+        const cells = filterByExplored.value ? visibleExplored.value : visibleCells.value;
         const cellsToFetch: string[] = [];
 
-        for (const cell of visibleExplored.value) {
+        for (const cell of cells) {
             if (cellTypes.value.has(cell)) continue;
 
             const cached = getCellTypeFromCache(cell);
             if (cached !== null && cached !== "none") {
                 cellTypes.value.set(cell, cached as CellTypeKey);
-            } else {
+            } else if (cached === null && !prefetchDone) {
                 cellsToFetch.push(cell);
             }
         }
@@ -126,6 +141,20 @@ export function useTrailMap() {
             if (type !== "none") {
                 cellTypes.value.set(cell, type as CellTypeKey);
             }
+        }
+    };
+
+    /**
+     * Fetch the POI type for a single newly explored cell, bypassing the
+     * prefetch-done guard. Used when the user explores a new cell in the
+     * current session that may not yet be in the prefetch cache.
+     *
+     * @param cell - The S2 cell token that was just explored
+     */
+    const fetchCellTypeForNewExplored = async (cell: string): Promise<void> => {
+        const result = await fetchCellTypeFromService(cell);
+        if (result.type && result.type !== "none") {
+            cellTypes.value.set(cell, result.type as CellTypeKey);
         }
     };
 
@@ -143,5 +172,6 @@ export function useTrailMap() {
         updateVisibleCells,
         debouncedUpdate,
         fetchCellTypes,
+        fetchCellTypeForNewExplored,
     };
 }
