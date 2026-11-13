@@ -1,6 +1,12 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
+// The version comes from package.json, the only place to edit it. versionName is that string and
+// versionCode is major * 10000 + minor * 100 + patch (0.2.2 gives 202), so it grows with the version.
+// A version with a suffix such as 0.3.0-rc1 fails here on purpose: versionCode has to stay an integer.
+def appVersion = new groovy.json.JsonSlurper().parse(file("../../package.json")).version
+def (versionMajor, versionMinor, versionPatch) = appVersion.tokenize('.').collect { it as int }
+
 android {
     namespace = "io.kishintrails.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -8,8 +14,8 @@ android {
         applicationId "io.kishintrails.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode versionMajor * 10000 + versionMinor * 100 + versionPatch
+        versionName appVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
