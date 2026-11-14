@@ -13,6 +13,12 @@
             ← Map
           </router-link>
           <h1>Athlete</h1>
+          <router-link
+            to="/plan"
+            class="back"
+          >
+            Training plan →
+          </router-link>
         </header>
 
         <section class="card">

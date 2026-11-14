@@ -278,6 +278,12 @@
           >
             Athlete data
           </router-link>
+          <router-link
+            to="/plan"
+            class="btn-athlete"
+          >
+            Training plan
+          </router-link>
 
           <button
             class="btn-logout"
