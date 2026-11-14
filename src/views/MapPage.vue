@@ -272,6 +272,13 @@
             </div>
           </div>
 
+          <router-link
+            to="/athlete"
+            class="btn-athlete"
+          >
+            Athlete data
+          </router-link>
+
           <button
             class="btn-logout"
             @click="handleLogout"
@@ -301,8 +308,8 @@ import { useRouter } from 'vue-router';
 import { IonPage, IonContent } from '@ionic/vue';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { ukiyoEStyle } from '@/styles/ukiyoE';
-import { ukiyoeTonerStyle, addTonerPatterns } from '@/styles/ukiyoeToner';
+import { addTonerPatterns } from '@/styles/ukiyoeToner';
+import { STYLE_MAP } from '@/styles/mapStyles';
 import FogOverlay from '@/components/FogOverlay.vue';
 import PoiOverlay from '@/components/PoiOverlay.vue';
 import PerlinNoiseOverlay from '@/components/PerlinNoiseOverlay.vue';
@@ -319,19 +326,6 @@ import type { PerlinConfig, TileGroup } from '@/types/perlinConfig';
 const FOG_OPACITY = 0.90;
 const FOG_COLOR = '#1a1a1a';
 const FOG_RADIUS_KM = 1.25;
-
-const STANDARD_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm', minzoom: 0, maxzoom: 20 }],
-};
 
 const PERLIN_SCALE = ref(200);
 const PERLIN_THRESHOLD = ref(0.75);
@@ -351,12 +345,6 @@ const fogCenter = computed(() =>
     ? { lat: lastPosition.value.latitude, lng: lastPosition.value.longitude }
     : { lat: MAP_CENTER[1], lng: MAP_CENTER[0] }
 );
-
-const STYLE_MAP = {
-  'standard':    STANDARD_STYLE,
-  'ukiyo-e':     ukiyoEStyle,
-  'ukiyo-toner': ukiyoeTonerStyle,
-} as const;
 
 const showFog = ref(true);
 const fogMode = ref<'flat' | 'gradient'>('flat');
@@ -902,6 +890,22 @@ const clearAllGroupCells = () => {
 
 .btn-logout:hover {
   background-color: var(--c-btn-logout-h);
+}
+
+.btn-athlete {
+  display: block;
+  margin-top: 15px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: center;
+  text-decoration: none;
+  background-color: var(--c-btn-validate);
+  color: var(--c-text-btn);
+}
+
+.btn-athlete:hover {
+  background-color: var(--c-btn-validate-h);
 }
 
 .stats {

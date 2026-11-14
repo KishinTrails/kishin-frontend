@@ -1,0 +1,29 @@
+/* Colour tokens of the athlete pages, per theme class (see styleToThemeClass in
+   services/mapStyleService.ts). Set on the page's root element; the components read them
+   with var(). The ukiyo-e palette is the login page's: washi, sumi ink, prussian blue, ochre. */
+
+.athlete.theme-standard {
+  --c-page-bg:     #f5f5f5;
+  --c-card-bg:     #ffffff;
+  --c-card-border: #e2e2e2;
+  --c-text:        #222222;
+  --c-muted:       #666666;
+  --c-border:      #dddddd;
+  --c-empty:       #ebedf0;
+  --c-accent:      #2e7d32;
+  --c-accent-2:    #c62828;
+  --c-link:        #1565c0;
+}
+
+.athlete.theme-ukiyo {
+  --c-page-bg:     #1A2B4D;
+  --c-card-bg:     #E8D5A3;
+  --c-card-border: #B4A07A;
+  --c-text:        #1A2B4D;
+  --c-muted:       #6B5A3E;
+  --c-border:      #B4A07A;
+  --c-empty:       #D9C48F;
+  --c-accent:      #4A6B8A;
+  --c-accent-2:    #8B3A1E;
+  --c-link:        #1A2B4D;
+}

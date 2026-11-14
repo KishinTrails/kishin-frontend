@@ -9,6 +9,8 @@ import { createRouter, createWebHistory } from "@ionic/vue-router";
 import { RouteRecordRaw } from "vue-router";
 import MapPage from "../views/MapPage.vue";
 import LoginPage from "../views/LoginPage.vue";
+import AthletePage from "../views/AthletePage.vue";
+import ActivityPage from "../views/ActivityPage.vue";
 import { isAuthenticated, logout } from "@/services/authService";
 
 /**
@@ -38,6 +40,18 @@ const routes: Array<RouteRecordRaw> = [
         path: "/map",
         name: "Map",
         component: MapPage,
+        meta: { requiresAuth: true },
+    },
+    {
+        path: "/athlete",
+        name: "Athlete",
+        component: AthletePage,
+        meta: { requiresAuth: true },
+    },
+    {
+        path: "/athlete/activities/:id",
+        name: "Activity",
+        component: ActivityPage,
         meta: { requiresAuth: true },
     },
 ];
