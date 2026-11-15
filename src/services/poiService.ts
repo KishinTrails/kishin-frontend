@@ -3,7 +3,7 @@
  * Handles caching, batch requests, and localStorage persistence for S2 cells.
  */
 
-import { getToken } from "./authService";
+import { getToken, handleUnauthorized } from "./authService";
 import { getCellTypeFromCache, setCellTypeInCache, syncCacheToDisk, markPrefetchDone } from "./cacheService";
 
 /**
@@ -67,6 +67,7 @@ export async function prefetchAllCells(onProgress?: (pct: number) => void): Prom
 
     onProgress?.(0);
     const response = await fetch(`${API_BASE}/prefetch`, { headers });
+    handleUnauthorized(response);
     if (!response.ok) throw new Error(`Prefetch failed: ${response.status}`);
 
     const data: PrefetchResponse = await response.json();
@@ -115,6 +116,7 @@ export async function fetchCellTypes(cells: string[], signal?: AbortSignal): Pro
 
         try {
             const response = await fetch(url, { headers, signal });
+            handleUnauthorized(response);
             if (response.status === 204) {
                 for (const cell of batch) {
                     setCellTypeInCache(cell, "none");
@@ -170,6 +172,7 @@ export async function fetchCellType(cell: string, signal?: AbortSignal): Promise
     }
 
     const response = await fetch(`${API_BASE}/bycell?s2Cell=${cell}`, { headers, signal });
+    handleUnauthorized(response);
     if (!response.ok) {
         return { type: null, cacheHit: false };
     }

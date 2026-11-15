@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { login, logout, getToken, isAuthenticated, tokenExpiry, tokenExpiresWithin } from "./authService";
+import {
+    login,
+    logout,
+    getToken,
+    isAuthenticated,
+    tokenExpiry,
+    tokenExpiresWithin,
+    handleUnauthorized,
+    setUnauthorizedHandler,
+} from "./authService";
 
 /**
  * An unsigned JWT with the given claims; only the payload is read by the app.
@@ -214,6 +223,28 @@ describe("authService", () => {
 
         it("should be true without a token", () => {
             expect(tokenExpiresWithin(24 * HOUR_MS)).toBe(true);
+        });
+    });
+
+    describe("handleUnauthorized", () => {
+        it("deletes the token and calls the handler on a 401", () => {
+            const handler = vi.fn();
+            setUnauthorizedHandler(handler);
+
+            expect(handleUnauthorized({ status: 401 } as Response)).toBe(true);
+
+            expect(mockLocalStorage.removeItem).toHaveBeenCalledWith("kishin_token");
+            expect(handler).toHaveBeenCalledOnce();
+        });
+
+        it("does nothing on another status", () => {
+            const handler = vi.fn();
+            setUnauthorizedHandler(handler);
+
+            expect(handleUnauthorized({ status: 503 } as Response)).toBe(false);
+
+            expect(mockLocalStorage.removeItem).not.toHaveBeenCalled();
+            expect(handler).not.toHaveBeenCalled();
         });
     });
 });

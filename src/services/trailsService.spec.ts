@@ -4,6 +4,7 @@ import { fetchExploredTiles } from "./trailsService";
 // Mock authService
 vi.mock("./authService", () => ({
     getToken: vi.fn(),
+    handleUnauthorized: vi.fn(),
 }));
 
 import { getToken } from "./authService";

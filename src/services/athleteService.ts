@@ -6,7 +6,7 @@
  * Does not own: authentication (see `authService.ts`), caching, or any display formatting.
  */
 
-import { getToken } from "./authService";
+import { getToken, handleUnauthorized } from "./authService";
 
 const API_BASE = `${import.meta.env.VITE_API_BASE}/athlete`;
 
@@ -185,6 +185,7 @@ async function get<T>(path: string, params: Params = {}): Promise<T> {
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const response = await fetch(url, { headers });
+    handleUnauthorized(response);
     if (!response.ok) throw new AthleteApiError(response.status, path);
     return response.json();
 }

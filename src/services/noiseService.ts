@@ -3,7 +3,7 @@
  * Handles batch requests for S2 cells.
  */
 
-import { getToken } from "./authService";
+import { getToken, handleUnauthorized } from "./authService";
 
 /**
  * Response from the /noise/cells endpoint.
@@ -89,6 +89,7 @@ export async function fetchNoiseForCells(
                 body,
                 signal,
             });
+            handleUnauthorized(response);
 
             if (!response.ok) {
                 console.warn(`[noiseService] Batch error: ${response.status}`);

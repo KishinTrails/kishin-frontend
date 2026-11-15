@@ -47,6 +47,34 @@ export async function login(username: string, password: string): Promise<void> {
     localStorage.setItem(TOKEN_KEY, data.access_token);
 }
 
+/** Called after a 401 from the API; the router sets it to go to the login page. */
+let unauthorizedHandler: () => void = () => {};
+
+/**
+ * Sets what happens after the API refuses the token (a 401), once the token is deleted.
+ *
+ * @param handler - Called with no argument, such as a navigation to /login
+ */
+export function setUnauthorizedHandler(handler: () => void): void {
+    unauthorizedHandler = handler;
+}
+
+/**
+ * Deletes the token and calls the unauthorized handler when the API answered 401.
+ * The API refuses a token after it expires, after a password change and after a
+ * SECRET_KEY rotation; without this the app would keep a token it cannot use.
+ * Not for `/auth/login`, whose 401 means a wrong username or password.
+ *
+ * @param response - A response from a protected API route
+ * @returns True when the response was a 401
+ */
+export function handleUnauthorized(response: Response): boolean {
+    if (response.status !== 401) return false;
+    logout();
+    unauthorizedHandler();
+    return true;
+}
+
 /**
  * Log out the current user by removing the JWT token and clearing the POI cache.
  */

@@ -92,12 +92,15 @@ This frontend consumes the [kishin-api](https://github.com/KishinTrails/kishin-a
 
 ### Authentication
 
-- **POST** `/auth/login` - User login (returns JWT token)
-- **GET** `/auth/me` - Get current user (protected)
+- **POST** `/auth/login` - Login to the API's single account (returns a JWT token). The app
+  reads the token's expiry: an expired token leads to the login page, and GPS tracking does
+  not start when the token expires within 24 hours. When a protected route answers 401 (a
+  password change or a new `SECRET_KEY` on the server), the app deletes the token and
+  returns to the login page
 
 ### Trails
 
-- **GET** `/trails/explored` - Get user's explored S2 cells (protected)
+- **GET** `/trails/explored` - Get the explored S2 cells (protected)
 - **POST** `/trails/explored` - Log a newly explored S2 cell (protected)
 
 ### POI (Points of Interest)
@@ -123,9 +126,19 @@ Then build the APK from Android Studio.
 
 ### Capacitor Configuration
 
-Key settings in `capacitor.config.ts`:
-- `cleartext: true` - Required for loading map tiles over HTTP
-- `allowMixedContent: true` - Android-specific mixed content allowance
+Key settings:
+- `capacitor.config.ts`: `androidScheme: "https"`; `CapacitorHttp` sends `fetch` requests
+  through Android's HTTP client. Cleartext HTTP and mixed content are not allowed: the API
+  and the tile servers are reached over HTTPS.
+- `AndroidManifest.xml`: `allowBackup="false"`, so the WebView storage holding the login
+  token is not copied into the device backup.
+
+### Content Security Policy
+
+`npm run build` adds a `Content-Security-Policy` meta tag to `index.html` (see
+`vite.config.ts`): scripts from the app only, MapLibre's `blob:` worker, and requests to the
+app, the origin of `VITE_API_BASE` and the map tile servers. A new external host the app
+loads from must be added there. The development server runs without the policy.
 
 ## Testing
 

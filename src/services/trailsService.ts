@@ -3,7 +3,7 @@
  * Manages explored S2 cells associated with the authenticated user.
  */
 
-import { getToken } from "./authService";
+import { getToken, handleUnauthorized } from "./authService";
 
 /**
  * Response from the /trails/explored endpoint.
@@ -30,6 +30,7 @@ export async function logExploredCell(cell: string): Promise<void> {
         method: "POST",
         headers,
     });
+    handleUnauthorized(response);
     if (!response.ok) {
         throw new Error(`Failed to log explored cell: ${response.status}`);
     }
@@ -51,6 +52,7 @@ export async function fetchExploredTiles(): Promise<string[]> {
     }
 
     const response = await fetch(`${API_BASE}/explored`, { headers });
+    handleUnauthorized(response);
     if (!response.ok) {
         throw new Error(`Failed to fetch explored tiles: ${response.status}`);
     }

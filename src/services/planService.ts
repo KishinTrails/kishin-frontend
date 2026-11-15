@@ -5,7 +5,7 @@
  * server with `kishin plan import`), or display formatting.
  */
 
-import { getToken } from "./authService";
+import { getToken, handleUnauthorized } from "./authService";
 import type { ActivitySummary } from "./athleteService";
 
 const API_BASE = `${import.meta.env.VITE_API_BASE}/plan`;
@@ -109,6 +109,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown 
         headers,
         body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
+    handleUnauthorized(response);
     if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         const detail = typeof body.detail === "string" ? body.detail : `Request failed: ${response.status}`;

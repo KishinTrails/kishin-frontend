@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 vi.mock("./authService", () => ({
     getToken: vi.fn(),
+    handleUnauthorized: vi.fn(),
 }));
 
-import { getToken } from "./authService";
+import { getToken, handleUnauthorized } from "./authService";
 import {
     AthleteApiError,
     fetchActivities,
@@ -73,5 +74,12 @@ describe("athleteService", () => {
         const error = await fetchMeasures().catch((caught) => caught);
         expect(error).toBeInstanceOf(AthleteApiError);
         expect(error.status).toBe(503);
+    });
+
+    it("hands every response to handleUnauthorized", async () => {
+        const refused = { ok: false, status: 401, json: async () => ({}) };
+        mockFetch.mockResolvedValueOnce(refused);
+        await expect(fetchActivities()).rejects.toThrow(AthleteApiError);
+        expect(handleUnauthorized).toHaveBeenCalledWith(refused);
     });
 });

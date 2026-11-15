@@ -12,7 +12,7 @@ import LoginPage from "../views/LoginPage.vue";
 import AthletePage from "../views/AthletePage.vue";
 import ActivityPage from "../views/ActivityPage.vue";
 import PlanPage from "../views/PlanPage.vue";
-import { isAuthenticated, logout } from "@/services/authService";
+import { isAuthenticated, logout, setUnauthorizedHandler } from "@/services/authService";
 
 /**
  * Application route definitions.
@@ -84,6 +84,11 @@ router.beforeEach((to, from, next) => {
     } else {
         next();
     }
+});
+
+// When the API refuses the token, authService deletes it and the app returns to the login page.
+setUnauthorizedHandler(() => {
+    void router.replace("/login");
 });
 
 export default router;

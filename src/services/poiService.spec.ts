@@ -4,6 +4,7 @@ import { fetchCellTypes, fetchCellType, CellType } from "./poiService";
 // Mock dependencies
 vi.mock("./authService", () => ({
     getToken: vi.fn(),
+    handleUnauthorized: vi.fn(),
 }));
 
 vi.mock("./cacheService", () => ({

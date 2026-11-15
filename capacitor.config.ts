@@ -6,11 +6,6 @@ const config: CapacitorConfig = {
     webDir: "dist",
     server: {
         androidScheme: "https",
-        // Important: allow cleartext traffic for map tiles
-        cleartext: true,
-    },
-    android: {
-        allowMixedContent: true,
     },
     plugins: {
         CapacitorHttp: {

@@ -3,6 +3,7 @@ import { fetchNoiseForCells, clearNoiseCache } from "./noiseService";
 
 vi.mock("./authService", () => ({
     getToken: vi.fn(),
+    handleUnauthorized: vi.fn(),
 }));
 
 import { getToken } from "./authService";

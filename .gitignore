@@ -37,3 +37,11 @@ npm-debug.log*
 *.jks
 .env
 *.xcf
+
+# IDE settings of the Android project (they hold local paths)
+android/.idea/
+android/.project
+android/.settings/
+android/app/.classpath
+android/app/.project
+android/app/.settings/
