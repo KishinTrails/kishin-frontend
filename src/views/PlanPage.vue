@@ -83,17 +83,42 @@
             </div>
           </section>
 
-          <section class="card">
+          <section
+            v-if="chart"
+            class="card"
+          >
+            <div
+              class="tabs"
+              role="tablist"
+            >
+              <button
+                v-for="tab in CHART_TABS"
+                :key="tab.metric"
+                type="button"
+                role="tab"
+                :aria-selected="chartMetric === tab.metric"
+                :class="{ active: chartMetric === tab.metric }"
+                @click="chartMetric = tab.metric"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
             <LineChart
-              title="Long run per week"
-              :x="series.weeks"
+              :title="activeTab.title"
+              :x="chart.weeks"
               :series="[
-                { name: 'Planned', values: series.planned, dashed: true },
-                { name: 'Longest Garmin run', values: series.longest },
+                { name: 'Planned', values: chart.series[chartMetric].planned, dashed: true },
+                { name: 'Garmin', values: chart.series[chartMetric].recorded },
               ]"
               :format-x="(value) => `Week ${Math.round(value)}`"
-              :format-y="(value) => `${value.toFixed(1)} km`"
+              :format-y="activeTab.format"
             />
+            <p
+              v-if="chartMetric !== 'longest'"
+              class="stats-note"
+            >
+              {{ activeTab.note }}
+            </p>
           </section>
 
           <section class="card">
@@ -113,8 +138,8 @@
 <script setup lang="ts">
 /**
  * PlanPage.vue — Progression of the active training plan: completion counts, the selected week's
- * trainings (the current week by default) with their completion forms, the planned long run
- * against the longest Garmin run of each week, and the timeline of all weeks.
+ * trainings (the current week by default) with their completion forms, a chart of each week's
+ * planned and Garmin running (tabs: distance, moving time, longest run), and the timeline of all weeks.
  * Does not own: importing plans (`kishin plan import` on the server) or Willpower.
  */
 import { computed, onMounted, ref } from 'vue';
@@ -126,13 +151,51 @@ import WeekTimeline from '@/components/plan/WeekTimeline.vue';
 import { loadMapStyle, styleToThemeClass } from '@/services/mapStyleService';
 import { fetchPlan, PlanApiError, type PlanProgress } from '@/services/planService';
 import { longDate } from '@/utils/activityGrid';
-import { completionCounts, longRunSeries } from '@/utils/planProgress';
+import { completionCounts, weeklySeries, type WeeklyMetric } from '@/utils/planProgress';
 
 const theme = styleToThemeClass(loadMapStyle());
+
+/**
+ * Hours as `h:mm`.
+ *
+ * @param hours - Hours, fractional
+ * @returns For example `2:30 h`
+ */
+const formatHours = (hours: number): string => {
+  const minutes = Math.round(hours * 60);
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')} h`;
+};
+
+/** The chart tabs, in display order. */
+const CHART_TABS: { metric: WeeklyMetric, label: string, title: string, format: (value: number) => string, note: string }[] = [
+  {
+    metric: 'distance',
+    label: 'Distance',
+    title: 'Running distance per week',
+    format: (value) => `${value.toFixed(1)} km`,
+    note: 'Planned: the sum of the distance targets of the week\'s runs. Runs with only a duration target are not counted.',
+  },
+  {
+    metric: 'time',
+    label: 'Time',
+    title: 'Running moving time per week',
+    format: formatHours,
+    note: 'Planned: the sum of the duration targets of the week\'s runs. Runs with only a distance target are not counted.',
+  },
+  {
+    metric: 'longest',
+    label: 'Longest run',
+    title: 'Longest run per week',
+    format: (value) => `${value.toFixed(1)} km`,
+    note: '',
+  },
+];
 
 const plan = ref<PlanProgress | null>(null);
 const error = ref('');
 const selectedWeek = ref(1);
+const chartMetric = ref<WeeklyMetric>('distance');
+const activeTab = computed(() => CHART_TABS.find((tab) => tab.metric === chartMetric.value)!);
 
 /** The current week limited to the plan's weeks. */
 const clampedCurrent = computed(() =>
@@ -156,9 +219,7 @@ const countsNote = computed(() =>
     : 'Counted over the whole plan.',
 );
 
-const series = computed(() =>
-  plan.value ? longRunSeries(plan.value, plan.value.current_week) : { weeks: [], planned: [], longest: [] },
-);
+const chart = computed(() => (plan.value ? weeklySeries(plan.value, plan.value.current_week) : null));
 
 /** Loads the plan again, keeping the selected week. */
 async function reload(): Promise<void> {
@@ -258,6 +319,27 @@ h2 {
   margin: 6px 0 0;
   color: var(--c-muted);
   font-size: 0.8rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.tabs button {
+  padding: 4px 12px;
+  border: 1px solid var(--c-card-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--c-text);
+  cursor: pointer;
+}
+
+.tabs button.active {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-card-bg);
 }
 
 .trainings {

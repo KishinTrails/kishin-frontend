@@ -1,11 +1,11 @@
 /**
  * planProgress.ts — Figures of a plan's progression computed from the `/plan` response: the
- * done/planned counts overall and per training type, the long-run series for the chart, and
- * the labels of the training types. Plain functions, testable without a DOM.
+ * done/planned counts overall and per training type, the weekly series of the chart (distance,
+ * moving time, longest run), and the labels of the training types. Plain functions, testable without a DOM.
  * Does not own: fetching the plan or recording completions (see `services/planService.ts`).
  */
 
-import type { PlanProgress, PlanTraining, PlanWeek } from "@/services/planService";
+import type { PlanProgress, PlanTraining, PlanWeek, WeekRunning } from "@/services/planService";
 
 /** Display names of the training types. */
 export const TRAINING_LABELS: Record<string, string> = {
@@ -63,23 +63,67 @@ export function longRunTarget(week: PlanWeek): number | null {
     return week.trainings.find((training) => training.type === "EXPLORATORY_LONG_RUN")?.target_distance_km ?? null;
 }
 
+/** What the chart shows: weekly distance, weekly moving time, or the longest run of each week. */
+export type WeeklyMetric = "distance" | "time" | "longest";
+
+/** One chart: the planned value and the Garmin value of each week. */
+export interface WeeklySeries {
+    planned: (number | null)[];
+    recorded: (number | null)[];
+}
+
 /**
- * The long-run chart's series: one entry per week.
+ * Sum of a target over a week's runs.
+ *
+ * @param week - The week
+ * @param target - The target read from each run
+ * @returns The sum, or null when no run of the week has that kind of target
+ */
+const plannedSum = (week: PlanWeek, target: (training: PlanTraining) => number | null): number | null => {
+    const values = week.trainings
+        .filter((training) => !training.is_tick)
+        .map(target)
+        .filter((value): value is number => value !== null);
+    return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+};
+
+/**
+ * The chart's series, one entry per week, for each metric.
+ *
+ * Planned distance is the sum of the distance targets of the week's runs, and planned time the
+ * sum of their duration targets: a run with only a distance target counts in the distance only.
+ * Distances are in km, times in hours.
  *
  * @param plan - The progression
  * @param currentWeek - Weeks after this one have no recorded value yet
- * @returns Week numbers, planned targets and the longest Garmin run of each week
+ * @returns Week numbers and the planned and recorded values per metric
  */
-export function longRunSeries(plan: PlanProgress, currentWeek: number): {
+export function weeklySeries(plan: PlanProgress, currentWeek: number): {
     weeks: number[];
-    planned: (number | null)[];
-    longest: (number | null)[];
+    series: Record<WeeklyMetric, WeeklySeries>;
 } {
+    const recorded = (value: (running: WeekRunning) => number | null): (number | null)[] =>
+        plan.weeks.map((week) =>
+            week.week_number > currentWeek || week.running === null ? null : value(week.running),
+        );
     return {
         weeks: plan.weeks.map((week) => week.week_number),
-        planned: plan.weeks.map(longRunTarget),
-        longest: plan.weeks.map((week) =>
-            week.week_number > currentWeek || week.running === null ? null : (week.running.longest_run_km ?? 0),
-        ),
+        series: {
+            distance: {
+                planned: plan.weeks.map((week) => plannedSum(week, (training) => training.target_distance_km)),
+                recorded: recorded((running) => running.run_km),
+            },
+            time: {
+                planned: plan.weeks.map((week) => {
+                    const seconds = plannedSum(week, (training) => training.target_duration_sec);
+                    return seconds === null ? null : seconds / 3600;
+                }),
+                recorded: recorded((running) => running.run_moving_sec / 3600),
+            },
+            longest: {
+                planned: plan.weeks.map(longRunTarget),
+                recorded: recorded((running) => running.longest_run_km ?? 0),
+            },
+        },
     };
 }

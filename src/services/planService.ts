@@ -50,6 +50,7 @@ export interface PlanTraining {
 export interface WeekRunning {
     run_count: number;
     run_km: number;
+    run_moving_sec: number;
     longest_run_km: number | null;
 }
 

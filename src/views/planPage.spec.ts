@@ -35,12 +35,12 @@ const plan = (current_week: number): PlanProgress => ({
   weeks: [
     {
       week_number: 1, phase: 'BASE', start: '2026-01-05', end: '2026-01-11',
-      running: { run_count: 2, run_km: 18, longest_run_km: 12 },
+      running: { run_count: 2, run_km: 18, run_moving_sec: 6000, longest_run_km: 12 },
       trainings: [training(1, 'EXPLORATORY_LONG_RUN', true, 12), training(2, 'YOGA', false)],
     },
     {
       week_number: 2, phase: 'PEAK', start: '2026-01-12', end: '2026-01-18',
-      running: { run_count: 0, run_km: 0, longest_run_km: null },
+      running: { run_count: 0, run_km: 0, run_moving_sec: 0, longest_run_km: null },
       trainings: [training(3, 'EXPLORATORY_LONG_RUN', false, 15), training(4, 'YOGA', true)],
     },
   ],
@@ -60,6 +60,20 @@ describe('PlanPage', () => {
     expect(wrapper.find('.stats').text()).toContain('All trainings2/4');
     expect(wrapper.find('.line-chart').exists()).toBe(true);
     expect(wrapper.findAll('.week-timeline tbody tr')).toHaveLength(2);
+  });
+
+  it('switches the chart between distance, time and longest run', async () => {
+    mocked.fetchPlan.mockResolvedValue(plan(2));
+    const wrapper = mount(PlanPage, { global: { stubs } });
+    await flushPromises();
+    const tabs = wrapper.findAll('[role="tab"]');
+    expect(tabs.map((tab) => tab.text())).toEqual(['Distance', 'Time', 'Longest run']);
+    expect(wrapper.find('.line-chart').text()).toContain('Running distance per week');
+    await tabs[1]!.trigger('click');
+    expect(wrapper.find('.line-chart').text()).toContain('Running moving time per week');
+    expect(tabs[1]!.attributes('aria-selected')).toBe('true');
+    await tabs[2]!.trigger('click');
+    expect(wrapper.find('.line-chart').text()).toContain('Longest run per week');
   });
 
   it('opens another week from the timeline', async () => {

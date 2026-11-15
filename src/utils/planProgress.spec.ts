@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import type { PlanProgress, PlanTraining, PlanWeek } from "@/services/planService";
-import { completionCounts, longRunSeries, longRunTarget, trainingLabel } from "./planProgress";
+import { completionCounts, longRunTarget, trainingLabel, weeklySeries } from "./planProgress";
 
 let nextId = 1;
 
-const training = (type: string, done: boolean, target_distance_km: number | null = null): PlanTraining => ({
-    id: nextId++, position: 1, type, is_tick: !type.endsWith("RUN"), target_distance_km, target_duration_sec: null,
+const training = (
+    type: string, done: boolean, target_distance_km: number | null = null, target_duration_sec: number | null = null,
+): PlanTraining => ({
+    id: nextId++, position: 1, type, is_tick: !type.endsWith("RUN"), target_distance_km, target_duration_sec,
     segments: [], completion: done ? { completed_at: "2026-01-05T18:00:00", rpe: null, activity: null } : null,
 });
 
@@ -13,7 +15,7 @@ const week = (week_number: number, longRunKm: number, done: boolean[], running: 
     week_number, phase: "BASE", start: "2026-01-05", end: "2026-01-11", running,
     trainings: [
         training("EXPLORATORY_LONG_RUN", done[0]!, longRunKm),
-        training("FUNDAMENTAL_RUN", done[1]!),
+        training("FUNDAMENTAL_RUN", done[1]!, null, 1800),
         training("YOGA", done[2]!),
     ],
 });
@@ -22,9 +24,9 @@ const plan: PlanProgress = {
     plan_id: 1, name: "Example Plan", goal_type: null, target_fat_ratio: null, target_muscle_mass_kg: null,
     start_date: "2026-01-05", current_week: 2, week_count: 3, health_available: true,
     weeks: [
-        week(1, 10, [true, true, false], { run_count: 2, run_km: 16, longest_run_km: 11 }),
-        week(2, 12, [false, true, true], { run_count: 0, run_km: 0, longest_run_km: null }),
-        week(3, 8, [false, false, false], { run_count: 0, run_km: 0, longest_run_km: null }),
+        week(1, 10, [true, true, false], { run_count: 2, run_km: 16, run_moving_sec: 5400, longest_run_km: 11 }),
+        week(2, 12, [false, true, true], { run_count: 0, run_km: 0, run_moving_sec: 0, longest_run_km: null }),
+        week(3, 8, [false, false, false], { run_count: 0, run_km: 0, run_moving_sec: 0, longest_run_km: null }),
     ],
 };
 
@@ -44,13 +46,23 @@ describe("planProgress", () => {
         expect(completionCounts(plan, 1)[0]).toEqual({ label: "All trainings", done: 2, planned: 3 });
     });
 
-    it("builds the long-run series up to the current week", () => {
+    it("builds the weekly series up to the current week", () => {
         expect(longRunTarget(plan.weeks[0]!)).toBe(10);
-        expect(longRunSeries(plan, 2)).toEqual({ weeks: [1, 2, 3], planned: [10, 12, 8], longest: [11, 0, null] });
+        expect(weeklySeries(plan, 2)).toEqual({
+            weeks: [1, 2, 3],
+            series: {
+                distance: { planned: [10, 12, 8], recorded: [16, 0, null] },
+                time: { planned: [0.5, 0.5, 0.5], recorded: [1.5, 0, null] },
+                longest: { planned: [10, 12, 8], recorded: [11, 0, null] },
+            },
+        });
     });
 
-    it("leaves the longest run empty without Garmin data", () => {
+    it("leaves the recorded values empty without Garmin data", () => {
         const withoutHealth = { ...plan, weeks: plan.weeks.map((w) => ({ ...w, running: null })) };
-        expect(longRunSeries(withoutHealth, 3).longest).toEqual([null, null, null]);
+        const { series } = weeklySeries(withoutHealth, 3);
+        expect([series.distance.recorded, series.time.recorded, series.longest.recorded]).toEqual([
+            [null, null, null], [null, null, null], [null, null, null],
+        ]);
     });
 });
