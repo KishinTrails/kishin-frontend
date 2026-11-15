@@ -197,7 +197,11 @@ Kishin Trails uses **AI-assisted development** tools to accelerate coding, follo
 
 ## 📜 License
 
-This project is released under the [MIT License](LICENSE).
+This project is released under the [PolyForm Noncommercial License 1.0.0](LICENSE). Any
+noncommercial purpose is permitted, which the licence spells out as including personal
+study, hobby projects and use by charities, schools, public research organisations and
+government bodies. It grants no licence for commercial use. The `LICENSE` file is the
+terms; this paragraph is not.
 
 ---
 

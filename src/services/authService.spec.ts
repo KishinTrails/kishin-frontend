@@ -1,5 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { login, logout, getToken, isAuthenticated } from "./authService";
+import { login, logout, getToken, isAuthenticated, tokenExpiry, tokenExpiresWithin } from "./authService";
+
+/**
+ * An unsigned JWT with the given claims; only the payload is read by the app.
+ *
+ * @param claims - The payload
+ * @returns header.payload.signature
+ */
+function jwt(claims: Record<string, unknown>): string {
+    const encode = (value: object) =>
+        btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return `${encode({ alg: "HS256", typ: "JWT" })}.${encode(claims)}.signature`;
+}
+
+const HOUR_MS = 3_600_000;
+const inHours = (hours: number) => Math.floor((Date.now() + hours * HOUR_MS) / 1000);
 
 describe("authService", () => {
     let mockFetch: ReturnType<typeof vi.fn>;
@@ -135,12 +150,22 @@ describe("authService", () => {
     });
 
     describe("isAuthenticated", () => {
-        it("should return true when token exists", () => {
+        it("should return true when the token has not expired", () => {
+            mockLocalStorage.getItem.mockReturnValue(jwt({ sub: "foo", exp: inHours(1) }));
+
+            expect(isAuthenticated()).toBe(true);
+        });
+
+        it("should return false when the token has expired", () => {
+            mockLocalStorage.getItem.mockReturnValue(jwt({ sub: "foo", exp: inHours(-1) }));
+
+            expect(isAuthenticated()).toBe(false);
+        });
+
+        it("should return false when the token is not a JWT", () => {
             mockLocalStorage.getItem.mockReturnValue("some-token");
 
-            const result = isAuthenticated();
-
-            expect(result).toBe(true);
+            expect(isAuthenticated()).toBe(false);
         });
 
         it("should return false when no token exists", () => {
@@ -159,5 +184,36 @@ describe("authService", () => {
             expect(result).toBe(false);
         });
     });
-});
 
+    describe("tokenExpiry", () => {
+        it("should read exp in milliseconds", () => {
+            expect(tokenExpiry(jwt({ exp: 1_800_000_000 }))).toBe(1_800_000_000_000);
+        });
+
+        it("should return null without exp", () => {
+            expect(tokenExpiry(jwt({ sub: "foo" }))).toBeNull();
+        });
+
+        it("should return null for an unreadable payload", () => {
+            expect(tokenExpiry("a.%%%.c")).toBeNull();
+        });
+    });
+
+    describe("tokenExpiresWithin", () => {
+        it("should be true when exp is within the time", () => {
+            mockLocalStorage.getItem.mockReturnValue(jwt({ exp: inHours(23) }));
+
+            expect(tokenExpiresWithin(24 * HOUR_MS)).toBe(true);
+        });
+
+        it("should be false when exp is later", () => {
+            mockLocalStorage.getItem.mockReturnValue(jwt({ exp: inHours(25) }));
+
+            expect(tokenExpiresWithin(24 * HOUR_MS)).toBe(false);
+        });
+
+        it("should be true without a token", () => {
+            expect(tokenExpiresWithin(24 * HOUR_MS)).toBe(true);
+        });
+    });
+});

@@ -31,7 +31,10 @@ import { Geolocation } from "@capacitor/geolocation";
 
 import { TrailTracker } from "@/plugins/trailTrackerPlugin";
 import type { TrailTrackerPosition } from "@/plugins/trailTrackerPlugin";
-import { getToken } from "@/services/authService";
+import { getToken, tokenExpiresWithin } from "@/services/authService";
+
+/** A run must not start with a token that expires sooner than this. */
+export const LOGIN_MARGIN_MS = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Singleton state — declared at module scope so all callers share one instance
@@ -40,6 +43,8 @@ import { getToken } from "@/services/authService";
 const isTracking = ref(false);
 const lastPosition = ref<TrailTrackerPosition | null>(null);
 const error = ref<string | null>(null);
+/** True when tracking was refused because the token expires within LOGIN_MARGIN_MS. */
+const loginExpiresSoon = ref(false);
 
 /** Handle returned by addListener; kept so we can remove it on stop. */
 let positionListenerHandle: { remove: () => void } | null = null;
@@ -95,6 +100,14 @@ export function useTrailTracker() {
     async function startTracking(): Promise<void> {
         if (isTracking.value) return;
         error.value = null;
+
+        // The native service gets this token once and sends it for the whole run;
+        // it cannot log in again by itself.
+        loginExpiresSoon.value = tokenExpiresWithin(LOGIN_MARGIN_MS);
+        if (loginExpiresSoon.value) {
+            error.value = "Your login expires within 24 hours. Log in again before tracking.";
+            return;
+        }
 
         try {
             // Step 1 — foreground location permission
@@ -166,6 +179,7 @@ export function useTrailTracker() {
         isTracking: readonly(isTracking),
         lastPosition: readonly(lastPosition),
         error: readonly(error),
+        loginExpiresSoon: readonly(loginExpiresSoon),
         statusLabel,
         statusClass,
         startTracking,

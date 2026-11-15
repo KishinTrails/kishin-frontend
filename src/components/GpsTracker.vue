@@ -39,6 +39,12 @@
       class="gps-error"
     >
       {{ error }}
+      <router-link
+        v-if="loginExpiresSoon"
+        to="/logout"
+      >
+        Log in again
+      </router-link>
     </div>
 
     <div class="gps-controls">
@@ -76,6 +82,7 @@ const {
     isTracking,
     lastPosition,
     error,
+    loginExpiresSoon,
     statusLabel,
     statusClass,
     startTracking,

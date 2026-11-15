@@ -65,10 +65,42 @@ export function getToken(): string | null {
 }
 
 /**
+ * The expiry of a JWT, read from its payload without checking the signature.
+ * The server checks the signature; the app only needs to know when to ask for
+ * a new login.
+ *
+ * @param token - The JWT
+ * @returns Milliseconds since 1970-01-01, or null when the token has no readable `exp`
+ */
+export function tokenExpiry(token: string): number | null {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    try {
+        const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+        const claims = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")));
+        return typeof claims.exp === "number" ? claims.exp * 1000 : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Whether the stored token expires within the given time, or has no readable expiry.
+ *
+ * @param milliseconds - How far ahead to look
+ * @returns True when there is no token, it has no readable `exp`, or `exp` is within that time
+ */
+export function tokenExpiresWithin(milliseconds: number): boolean {
+    const token = getToken();
+    const expiry = token ? tokenExpiry(token) : null;
+    return expiry === null || expiry - Date.now() <= milliseconds;
+}
+
+/**
  * Check if a user is currently authenticated.
  *
- * @returns True if a valid token exists in localStorage, false otherwise.
+ * @returns True if a token exists in localStorage and has not expired, false otherwise.
  */
 export function isAuthenticated(): boolean {
-    return !!getToken();
+    return !tokenExpiresWithin(0);
 }
