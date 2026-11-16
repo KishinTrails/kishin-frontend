@@ -40,13 +40,11 @@
           @toggle-cell="toggleCellInGroup"
           @clear-all-cells="clearAllGroupCells"
         />
-        <GpsTracker style="position: absolute; bottom: 20px; right: 20px; z-index: 2;" />
-
         <button
           v-if="!showControls"
           class="controls-toggle"
           :class="controlsTheme"
-          aria-label="Open the panel"
+          :aria-label="trackingAvailable ? `Open the panel (tracking ${isTracking ? 'on' : 'off'})` : 'Open the panel'"
           @click="showControls = true"
         >
           <img
@@ -55,6 +53,12 @@
             width="32"
             height="32"
           >
+          <span
+            v-if="trackingAvailable"
+            class="toggle-dot"
+            :class="{ on: isTracking }"
+            aria-hidden="true"
+          />
         </button>
 
         <div
@@ -113,6 +117,11 @@
               Plan
             </router-link>
           </nav>
+
+          <GpsTracker
+            v-if="trackingAvailable"
+            @center="centerOn"
+          />
 
           <PanelGroup
             id="map"
@@ -364,7 +373,8 @@ import PoiOverlay from '@/components/PoiOverlay.vue';
 import PerlinNoiseOverlay from '@/components/PerlinNoiseOverlay.vue';
 import TileSelectOverlay from '@/components/TileSelectOverlay.vue';
 import { useTrailMap } from '@/composables/useTrailMap';
-import { useTrailTracker } from '@/composables/useTrailTracker';
+import { trackingAvailable, useTrailTracker } from '@/composables/useTrailTracker';
+import type { TrailTrackerPosition } from '@/plugins/trailTrackerPlugin';
 import { logout } from '@/services/authService';
 import { saveMapStyle, loadMapStyle, styleToThemeClass } from '@/services/mapStyleService';
 import GpsTracker from '@/components/GpsTracker.vue';
@@ -430,7 +440,16 @@ const needsEnumeration = computed(() =>
   !filterByExplored.value && (showPoi.value || showTileSelect.value)
 );
 
-const { lastPosition } = useTrailTracker();
+const { lastPosition, isTracking } = useTrailTracker();
+
+/**
+ * Moves the map to a GPS fix ("Center on me" in the Tracking group).
+ *
+ * @param position - The fix
+ */
+const centerOn = (position: TrailTrackerPosition): void => {
+  map.value?.easeTo({ center: [position.longitude, position.latitude] });
+};
 
 const controlsTheme = computed(() => styleToThemeClass(mapStyle.value));
 
@@ -527,6 +546,12 @@ const initMap = (): void => {
   });
 
   // Debounce updates during pan/zoom to limit API calls
+  // On a narrow screen a tap on the map closes the panel. MapLibre fires `click` for a tap
+  // only, not after a pan or a pinch. While Tile Selection is on, its overlay takes the taps.
+  map.value.on('click', () => {
+    if (isNarrowScreen()) showControls.value = false;
+  });
+
   map.value.on('moveend', () => {
     debouncedUpdate(map.value!.getBounds(), needsEnumeration.value);
   });
@@ -688,6 +713,22 @@ const clearAllGroupCells = () => {
   box-shadow: var(--c-box-shadow);
   cursor: pointer;
   transition: background-color 0.3s, border-color 0.3s;
+}
+
+/* Tracking state on the closed panel's button: green while tracking, grey otherwise. */
+.toggle-dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--c-bg);
+  border-radius: 50%;
+  background: #9a9a9a;
+}
+
+.toggle-dot.on {
+  background: #2e9e4f;
 }
 
 .controls-header {

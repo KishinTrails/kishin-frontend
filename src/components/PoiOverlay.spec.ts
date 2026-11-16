@@ -35,6 +35,11 @@ const makeMap = () => {
       if (list) listeners.set(ev, list.filter(f => f !== cb));
     }),
 
+    isStyleLoaded: vi.fn(() => true),
+    once: vi.fn((ev: string, cb: () => void) => {
+      if (!listeners.has(ev)) listeners.set(ev, []);
+      listeners.get(ev)!.push(cb);
+    }),
     /** Test helper: fire all listeners for an event. */
     emit: (ev: string) => listeners.get(ev)?.forEach(cb => cb()),
   };
@@ -88,6 +93,15 @@ describe('PoiOverlay', () => {
   describe('Layer setup', () => {
     it('adds the poi-cells GeoJSON source when map is provided', async () => {
       wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect(mockMap.addSource).toHaveBeenCalledWith('poi-cells', expect.objectContaining({ type: 'geojson' }));
+    });
+
+    it('waits for the map style to load before adding anything', async () => {
+      mockMap.isStyleLoaded.mockReturnValue(false);
+      wrapper = await mountOverlay({ map: mockMap, cellTypes: new Map(), visibleCells: [] });
+      expect(mockMap.addSource).not.toHaveBeenCalled();
+      mockMap.emit('load');
+      await new Promise(r => setTimeout(r, 0));
       expect(mockMap.addSource).toHaveBeenCalledWith('poi-cells', expect.objectContaining({ type: 'geojson' }));
     });
 

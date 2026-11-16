@@ -26,7 +26,8 @@
  * JS position listener is attached (e.g. screen locked, WebView paused).
  */
 
-import { ref, computed, readonly } from "vue";
+import { ref, readonly } from "vue";
+import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
 
 import { TrailTracker } from "@/plugins/trailTrackerPlugin";
@@ -35,6 +36,9 @@ import { getToken, tokenExpiresWithin } from "@/services/authService";
 
 /** A run must not start with a token that expires sooner than this. */
 export const LOGIN_MARGIN_MS = 24 * 60 * 60 * 1000;
+
+/** True in the Android app, where the native tracking service exists; false in a browser. */
+export const trackingAvailable = Capacitor.isNativePlatform();
 
 // ---------------------------------------------------------------------------
 // Singleton state — declared at module scope so all callers share one instance
@@ -101,6 +105,12 @@ export function useTrailTracker() {
         if (isTracking.value) return;
         error.value = null;
 
+        // The tracking service is native; a browser has no background location either.
+        if (!trackingAvailable) {
+            error.value = "Tracking works in the Android app only.";
+            return;
+        }
+
         // The native service gets this token once and sends it for the whole run;
         // it cannot log in again by itself.
         loginExpiresSoon.value = tokenExpiresWithin(LOGIN_MARGIN_MS);
@@ -151,24 +161,6 @@ export function useTrailTracker() {
     }
 
     // -----------------------------------------------------------------------
-    // Derived state
-    // -----------------------------------------------------------------------
-
-    /** Human-readable status string for display in the GPS tracker UI. */
-    const statusLabel = computed<string>(() => {
-        if (isTracking.value) return "Tracking";
-        if (lastPosition.value) return "Idle";
-        return "Stopped";
-    });
-
-    /** CSS class name for the coloured status dot in the GPS tracker UI. */
-    const statusClass = computed<string>(() => {
-        if (isTracking.value) return "dot-active";
-        if (lastPosition.value) return "dot-idle";
-        return "dot-off";
-    });
-
-    // -----------------------------------------------------------------------
     // Exposed API
     //
     // Refs are readonly so only this composable mutates them; components can
@@ -180,8 +172,6 @@ export function useTrailTracker() {
         lastPosition: readonly(lastPosition),
         error: readonly(error),
         loginExpiresSoon: readonly(loginExpiresSoon),
-        statusLabel,
-        statusClass,
         startTracking,
         stopTracking,
     };

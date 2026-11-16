@@ -38,6 +38,11 @@ const makeMap = (): any => {
       const list = listeners.get(ev);
       if (list) listeners.set(ev, list.filter(f => f !== cb));
     }),
+    isStyleLoaded: vi.fn(() => true),
+    once: vi.fn((ev: string, cb: () => void) => {
+      if (!listeners.has(ev)) listeners.set(ev, []);
+      listeners.get(ev)!.push(cb);
+    }),
     /** Test helper: fire all listeners for an event. */
     emit: (ev: string) => listeners.get(ev)?.forEach(cb => cb()),
 
@@ -90,6 +95,17 @@ describe('FogOverlay', () => {
       wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'flat' } });
       const canvas = wrapper.find('canvas').element as HTMLElement;
       expect(canvas.style.display).toBe('none');
+    });
+
+    it('adds the flat fog layers only once the map style has loaded', async () => {
+      mockMap.isStyleLoaded.mockReturnValue(false);
+      wrapper = mount(FogOverlay, { props: { map: mockMap, exploredCells: [], fogMode: 'flat' } });
+      await wrapper.vm.$nextTick();
+      expect(mockMap.addSource).not.toHaveBeenCalled();
+      mockMap.emit('load');
+      await wrapper.vm.$nextTick();
+      expect(mockMap.addSource).toHaveBeenCalled();
+      expect(mockMap.addLayer).toHaveBeenCalled();
     });
 
     it('applies default props', () => {

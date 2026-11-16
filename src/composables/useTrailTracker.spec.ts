@@ -11,6 +11,12 @@ vi.mock("@/plugins/trailTrackerPlugin", () => ({
     },
 }));
 
+const native = vi.hoisted(() => ({ value: true }));
+
+vi.mock("@capacitor/core", () => ({
+    Capacitor: { isNativePlatform: () => native.value },
+}));
+
 vi.mock("@capacitor/geolocation", () => ({
     Geolocation: { requestPermissions: vi.fn().mockResolvedValue({ location: "granted" }) },
 }));
@@ -62,5 +68,23 @@ describe("useTrailTracker", () => {
         expect(start).toHaveBeenCalledWith(expect.objectContaining({ token: storedToken }));
         expect(tracker.loginExpiresSoon.value).toBe(false);
         expect(tracker.isTracking.value).toBe(true);
+    });
+
+    it("starts nothing in a browser and says why", async () => {
+        native.value = false;
+        vi.resetModules();
+        try {
+            const web = await import("./useTrailTracker");
+            storedToken = tokenExpiringIn(25);
+            const tracker = web.useTrailTracker();
+
+            await tracker.startTracking();
+
+            expect(web.trackingAvailable).toBe(false);
+            expect(start).not.toHaveBeenCalled();
+            expect(tracker.error.value).toBe("Tracking works in the Android app only.");
+        } finally {
+            native.value = true;
+        }
     });
 });

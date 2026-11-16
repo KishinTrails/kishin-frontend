@@ -7,7 +7,9 @@
  *   written, the group opens and the choice is not kept.
  * - Narrow window (see `utils/screen.ts`): closed when the page opens, and localStorage is not
  *   read or written, so the wide-window state is kept apart.
- * Does not own: the controls themselves (default slot) or their styles.
+ * Slots: default (the group's controls), `badge` (a short status beside the title, shown even
+ * when the group is closed).
+ * Does not own: the controls themselves or their styles.
  */
 import { ref } from 'vue';
 import { isNarrowScreen } from '@/utils/screen';
@@ -59,7 +61,10 @@ function onToggle(event: Event): void {
     :open="open"
     @toggle="onToggle"
   >
-    <summary>{{ title }}</summary>
+    <summary>
+      <span>{{ title }}</span>
+      <span class="badge"><slot name="badge" /></span>
+    </summary>
     <div class="panel-group-body">
       <slot />
     </div>
@@ -74,7 +79,7 @@ function onToggle(event: Event): void {
 summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 9px 0;
   color: var(--c-text-muted);
   font-size: 11px;
@@ -88,6 +93,14 @@ summary {
 
 summary::-webkit-details-marker {
   display: none;
+}
+
+/* Status shown beside the title, for example the tracking state; pushes the arrow right. */
+.badge {
+  flex: 1;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 summary::after {

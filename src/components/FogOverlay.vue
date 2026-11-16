@@ -26,6 +26,7 @@
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { tokenToCell, cellToVertices } from '@/utils/s2Utils';
 import { hexToRgba } from '@/utils/color';
+import { whenStyleLoaded } from '@/utils/mapReady';
 import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
 import type { Feature, Polygon } from 'geojson';
 
@@ -233,7 +234,7 @@ const onStyleData = (): void => {
 
 watch(
   () => props.map,
-  async (map, oldMap) => {
+  (map, oldMap) => {
     if (oldMap) {
       oldMap.off('styledata', onStyleData);
       oldMap.off('render', draw);
@@ -242,7 +243,7 @@ watch(
     if (!map) return;
     map.on('styledata', onStyleData);
     if (props.fogMode === 'flat') {
-      await setupFlatLayers(map);
+      whenStyleLoaded(map, () => setupFlatLayers(map));
     } else {
       resizeCanvas();
       map.on('render', draw);

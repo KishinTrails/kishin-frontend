@@ -100,6 +100,12 @@ router.beforeEach((to, from, next) => {
     }
 });
 
+// Ionic hides the page left behind with aria-hidden. The link clicked to leave it still has the
+// focus, and a browser refuses to hide a focused element; taking the focus off fixes both.
+router.afterEach(() => {
+    (document.activeElement as HTMLElement | null)?.blur();
+});
+
 // When the API refuses the token, authService deletes it and the app returns to the login page.
 setUnauthorizedHandler(() => {
     void router.replace("/login");

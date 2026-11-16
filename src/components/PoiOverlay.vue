@@ -8,6 +8,7 @@
  * tile fetching — those live in useTrailMap / GpsTracker.
  */
 import { watch, onUnmounted } from 'vue';
+import { whenStyleLoaded } from '@/utils/mapReady';
 import type { Map as MaplibreMap, GeoJSONSource } from 'maplibre-gl';
 import type { FeatureCollection, Feature, Polygon } from 'geojson';
 import { tokenToCell, cellToVertices, isValidToken } from '@/utils/s2Utils';
@@ -23,6 +24,10 @@ interface Props {
   /** S2 cell tokens that are currently within the viewport. */
   visibleCells: string[];
 }
+
+// It draws in MapLibre's layers only, so it renders nothing; without a render function Vue
+// warns that the component has no template.
+defineOptions({ render: () => null });
 
 const props = defineProps<Props>();
 
@@ -173,11 +178,11 @@ const onStyleData = (): void => { if (props.map) setupLayers(props.map); };
 
 watch(
   () => props.map,
-  async (map, oldMap) => {
+  (map, oldMap) => {
     if (oldMap) teardown(oldMap);
     if (!map) return;
     map.on('styledata', onStyleData);
-    await setupLayers(map);
+    whenStyleLoaded(map, () => setupLayers(map));
   },
   { immediate: true },
 );
