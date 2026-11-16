@@ -1,8 +1,18 @@
 <template>
   <ion-page>
     <ion-content :fullscreen="true">
-      <div class="login-container" :class="theme">
+      <div
+        class="login-container"
+        :class="theme"
+      >
         <div class="login-card">
+          <img
+            src="/logo.png"
+            alt=""
+            class="logo"
+            width="140"
+            height="140"
+          >
           <h1>Kishin</h1>
           <p class="subtitle">
             Sign in to continue
@@ -172,6 +182,11 @@ const handleLogin = async () => {
   padding: 30px;
   box-shadow: var(--c-card-shadow);
   transition: background-color 0.3s, border-color 0.3s;
+}
+
+.logo {
+  display: block;
+  margin: 0 auto 16px;
 }
 
 h1 {

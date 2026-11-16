@@ -20,14 +20,20 @@ vi.mock('@/services/mapStyleService', () => ({
 }));
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { id: '1001' } }),
+  useRoute: () => ({ name: 'Activity', params: { id: '1001' } }),
 }));
 
+vi.mock('@/services/activityNeighbours', () => ({ fetchNeighbours: vi.fn() }));
+
 import * as service from '@/services/athleteService';
+import * as neighbourService from '@/services/activityNeighbours';
 import AthletePage from './AthletePage.vue';
+import AthleteBodyPage from './AthleteBodyPage.vue';
+import AthleteActivitiesPage from './AthleteActivitiesPage.vue';
 import ActivityPage from './ActivityPage.vue';
 
 const mocked = vi.mocked(service);
+const mockedNeighbours = vi.mocked(neighbourService);
 
 const stubs = {
   'ion-page': { template: '<div><slot /></div>' },
@@ -44,7 +50,7 @@ const summary = (id: string, name: string | null) => ({
   avg_hr: 140, max_hr: 160, calories: 400, avg_speed_kmh: 12, training_effect: 2.5, anaerobic_training_effect: 0.5,
 });
 
-describe('AthletePage', () => {
+describe('athlete tabs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.fetchDailyActivities.mockResolvedValue([
@@ -59,26 +65,51 @@ describe('AthletePage', () => {
     mocked.fetchActivities.mockResolvedValue([summary('1001', 'Example Run'), summary('1002', null)]);
   });
 
-  it('shows the grid, the weekly charts, the measures and the activities', async () => {
+  /**
+   * The text of the active sub-tab.
+   *
+   * @param wrapper - A mounted athlete page
+   * @returns The label of the tab marked as the current page
+   */
+  const activeTab = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.find('.athlete-tabs [aria-current="page"]').text();
+
+  it('Overview shows the grid and the weekly charts, and loads nothing else', async () => {
     const wrapper = mount(AthletePage, { global: { stubs } });
     await flushPromises();
+    expect(activeTab(wrapper)).toBe('Overview');
     expect(wrapper.find('.activity-grid').exists()).toBe(true);
     expect(wrapper.findAll('.bar-chart')).toHaveLength(2);
-    expect(wrapper.findAll('.line-chart')).toHaveLength(3);
-    const links = wrapper.findAllComponents(RouterLinkStub).filter((link) => String(link.props('to')).includes('/activities/'));
-    expect(links.map((link) => link.text())).toEqual(['Example Run', 'running / generic']);
-    expect(mocked.fetchActivities).toHaveBeenCalledWith({ limit: 20, offset: 0 });
+    expect(mocked.fetchMeasures).not.toHaveBeenCalled();
+    expect(mocked.fetchActivities).not.toHaveBeenCalled();
   });
 
-  it('says when the health database is not configured', async () => {
+  it('Overview says when the health database is not configured', async () => {
     mocked.fetchDailyActivities.mockRejectedValue(new service.AthleteApiError(503, '/activities/daily'));
     const wrapper = mount(AthletePage, { global: { stubs } });
     await flushPromises();
     expect(wrapper.text()).toContain('Health data is not configured on the server.');
   });
 
-  it('hides "Load more" after a short page', async () => {
-    const wrapper = mount(AthletePage, { global: { stubs } });
+  it('Body shows the three measurement charts', async () => {
+    const wrapper = mount(AthleteBodyPage, { global: { stubs } });
+    await flushPromises();
+    expect(activeTab(wrapper)).toBe('Body');
+    expect(wrapper.findAll('.line-chart')).toHaveLength(3);
+    expect(mocked.fetchDailyActivities).not.toHaveBeenCalled();
+  });
+
+  it('Activities lists the activities with links to their pages', async () => {
+    const wrapper = mount(AthleteActivitiesPage, { global: { stubs } });
+    await flushPromises();
+    expect(activeTab(wrapper)).toBe('Activities');
+    const links = wrapper.findAllComponents(RouterLinkStub).filter((link) => String(link.props('to')).includes('/activities/'));
+    expect(links.map((link) => link.text())).toEqual(['Example Run', 'running / generic']);
+    expect(mocked.fetchActivities).toHaveBeenCalledWith({ limit: 20, offset: 0 });
+  });
+
+  it('Activities hides "Load more" after a short page', async () => {
+    const wrapper = mount(AthleteActivitiesPage, { global: { stubs } });
     await flushPromises();
     expect(wrapper.find('.activity-list button').exists()).toBe(false);
   });
@@ -104,6 +135,7 @@ describe('ActivityPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocked.fetchActivity.mockResolvedValue(detail);
+    mockedNeighbours.fetchNeighbours.mockResolvedValue({ previous: null, next: null });
     mocked.fetchTrack.mockResolvedValue({
       type: 'Feature',
       geometry: { type: 'LineString', coordinates: [[2.35, 48.85], [2.36, 48.86]] },
@@ -145,5 +177,35 @@ describe('ActivityPage', () => {
     const wrapper = mount(ActivityPage, { global: { stubs } });
     await flushPromises();
     expect(wrapper.text()).toContain('This activity does not exist.');
+  });
+
+  it('shows the breadcrumb and the headline tiles', async () => {
+    const wrapper = mount(ActivityPage, { global: { stubs } });
+    await flushPromises();
+    const crumbs = wrapper.find('.crumbs');
+    expect(crumbs.findAll('a').map((link) => link.text())).toEqual(['Athlete', 'Activities']);
+    expect(crumbs.find('[aria-current="page"]').text()).toContain('Example Run');
+    expect(wrapper.findAll('.headline .tile').length).toBeGreaterThan(3);
+  });
+
+  it('links to the activities before and after it', async () => {
+    mockedNeighbours.fetchNeighbours.mockResolvedValue({
+      previous: summary('1000', 'Foo'),
+      next: summary('1002', null),
+    });
+    const wrapper = mount(ActivityPage, { global: { stubs } });
+    await flushPromises();
+    expect(mockedNeighbours.fetchNeighbours).toHaveBeenCalledWith('1001', '2026-03-03T07:00:00');
+    const previous = wrapper.find('.neighbour.previous');
+    expect(previous.text()).toContain('Foo');
+    expect(wrapper.findAllComponents(RouterLinkStub).map((link) => link.props('to')))
+      .toEqual(expect.arrayContaining(['/athlete/activities/1000', '/athlete/activities/1002']));
+    expect(wrapper.find('.neighbour.next').text()).toContain('running');
+  });
+
+  it('has no previous / next links when there are none', async () => {
+    const wrapper = mount(ActivityPage, { global: { stubs } });
+    await flushPromises();
+    expect(wrapper.find('.neighbour').exists()).toBe(false);
   });
 });

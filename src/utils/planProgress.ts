@@ -1,11 +1,73 @@
 /**
  * planProgress.ts — Figures of a plan's progression computed from the `/plan` response: the
  * done/planned counts overall and per training type, the weekly series of the chart (distance,
- * moving time, longest run), and the labels of the training types. Plain functions, testable without a DOM.
+ * moving time, longest run), the labels of the training types, the words of the RPE scale, a
+ * week's date range and what is left to do in the current week. Plain functions, testable without a DOM.
  * Does not own: fetching the plan or recording completions (see `services/planService.ts`).
  */
 
 import type { PlanProgress, PlanTraining, PlanWeek, WeekRunning } from "@/services/planService";
+import { addDays, longDate } from "@/utils/activityGrid";
+
+/**
+ * A plan phase as a reader reads it.
+ *
+ * @param phase - For example `BASE`
+ * @returns For example `Base`
+ */
+export const phaseLabel = (phase: string): string => phase.charAt(0) + phase.slice(1).toLowerCase();
+
+/**
+ * The word for a rating of perceived exertion.
+ *
+ * @param rpe - 1 to 10
+ * @returns 1–2 very easy, 3–4 easy, 5–6 moderate, 7–8 hard, 9 very hard, 10 max
+ */
+export function rpeWord(rpe: number): string {
+    if (rpe <= 2) return "very easy";
+    if (rpe <= 4) return "easy";
+    if (rpe <= 6) return "moderate";
+    if (rpe <= 8) return "hard";
+    if (rpe === 9) return "very hard";
+    return "max";
+}
+
+/**
+ * The days of a week, as short as the dates allow.
+ *
+ * @param start - ISO day of the Monday
+ * @param end - ISO day of the Sunday
+ * @returns `3–9 Nov`, `27 Oct – 2 Nov`, or `29 Dec 2025 – 4 Jan 2026` across a new year
+ */
+export function weekRange(start: string, end: string): string {
+    const [, startDay, startMonth, startYear] = longDate(start).split(" ");
+    const [, endDay, endMonth, endYear] = longDate(end).split(" ");
+    if (startYear !== endYear) return `${startDay} ${startMonth} ${startYear} – ${endDay} ${endMonth} ${endYear}`;
+    if (startMonth !== endMonth) return `${startDay} ${startMonth} – ${endDay} ${endMonth}`;
+    return `${startDay}–${endDay} ${endMonth}`;
+}
+
+/** What is left of a week on a given day. */
+export interface WeekLeft {
+    /** Days from that day to the Sunday, both included. */
+    days: number;
+    /** The trainings not done yet. */
+    trainings: PlanTraining[];
+}
+
+/**
+ * What is left to do in a week on a given day.
+ *
+ * @param week - The week
+ * @param today - ISO day
+ * @returns The days left and the trainings not done, or null when the day is not in the week
+ */
+export function weekLeft(week: PlanWeek, today: string): WeekLeft | null {
+    if (today < week.start || today > week.end) return null;
+    let days = 0;
+    while (addDays(today, days) <= week.end) days += 1;
+    return { days, trainings: week.trainings.filter((training) => training.completion === null) };
+}
 
 /** Display names of the training types. */
 export const TRAINING_LABELS: Record<string, string> = {

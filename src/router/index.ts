@@ -10,6 +10,8 @@ import { RouteRecordRaw } from "vue-router";
 import MapPage from "../views/MapPage.vue";
 import LoginPage from "../views/LoginPage.vue";
 import AthletePage from "../views/AthletePage.vue";
+import AthleteActivitiesPage from "../views/AthleteActivitiesPage.vue";
+import AthleteBodyPage from "../views/AthleteBodyPage.vue";
 import ActivityPage from "../views/ActivityPage.vue";
 import PlanPage from "../views/PlanPage.vue";
 import { isAuthenticated, logout, setUnauthorizedHandler } from "@/services/authService";
@@ -47,6 +49,18 @@ const routes: Array<RouteRecordRaw> = [
         path: "/athlete",
         name: "Athlete",
         component: AthletePage,
+        meta: { requiresAuth: true },
+    },
+    {
+        path: "/athlete/body",
+        name: "AthleteBody",
+        component: AthleteBodyPage,
+        meta: { requiresAuth: true },
+    },
+    {
+        path: "/athlete/activities",
+        name: "AthleteActivities",
+        component: AthleteActivitiesPage,
         meta: { requiresAuth: true },
     },
     {

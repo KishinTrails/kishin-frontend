@@ -1,0 +1,76 @@
+/* Colour tokens and shared styles of the pages under the top bar (AppShell.vue), per theme class
+   (see styleToThemeClass in services/mapStyleService.ts). AppShell sets `.app-page` and the theme
+   class on its root; the pages and their components read the tokens with var(). The ukiyo-e
+   palette is the login page's: washi, sumi ink, prussian blue, ochre. */
+
+.app-page.theme-standard {
+  --c-page-bg:     #f5f5f5;
+  --c-card-bg:     #ffffff;
+  --c-card-border: #e2e2e2;
+  --c-text:        #222222;
+  --c-muted:       #666666;
+  --c-border:      #dddddd;
+  --c-empty:       #ebedf0;
+  --c-accent:      #2e7d32;
+  --c-accent-2:    #c62828;
+  --c-link:        #1565c0;
+  --c-bar-bg:      #ffffff;
+  --c-bar-border:  #e2e2e2;
+  --c-bar-text:    #222222;
+  --c-bar-muted:   #666666;
+  --c-bar-active:  #2e7d32;
+}
+
+.app-page.theme-ukiyo {
+  --c-page-bg:     #1A2B4D;
+  --c-card-bg:     #E8D5A3;
+  --c-card-border: #B4A07A;
+  --c-text:        #1A2B4D;
+  --c-muted:       #6B5A3E;
+  --c-border:      #B4A07A;
+  --c-empty:       #D9C48F;
+  --c-accent:      #4A6B8A;
+  --c-accent-2:    #8B3A1E;
+  --c-link:        #1A2B4D;
+  --c-bar-bg:      #13203A;
+  --c-bar-border:  #2C3F63;
+  --c-bar-text:    #E8D5A3;
+  --c-bar-muted:   #B4A07A;
+  --c-bar-active:  #D4A84B;
+}
+
+.app-page ion-content {
+  --background: var(--c-page-bg);
+}
+
+.app-page .page {
+  min-height: 100%;
+  padding: 16px;
+  color: var(--c-text);
+}
+
+.app-page .card {
+  max-width: 1100px;
+  margin: 0 auto 16px;
+  padding: 14px 16px;
+  background: var(--c-card-bg);
+  border: 1px solid var(--c-card-border);
+  border-radius: 8px;
+}
+
+/* Toasts (services/feedbackService.ts) are drawn outside the page, so they carry their own colours. */
+ion-toast.kishin-toast {
+  --background: #1A2B4D;
+  --color: #E8D5A3;
+  --border-radius: 8px;
+  font-weight: 600;
+}
+
+ion-toast.kishin-toast-error {
+  --background: #8B3A1E;
+  --color: #FFFFFF;
+}
+
+.app-page .error {
+  color: var(--c-accent-2);
+}

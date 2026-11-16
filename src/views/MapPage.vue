@@ -46,9 +46,15 @@
           v-if="!showControls"
           class="controls-toggle"
           :class="controlsTheme"
+          aria-label="Open the panel"
           @click="showControls = true"
         >
-          ☰
+          <img
+            src="/logo-128.png"
+            alt=""
+            width="32"
+            height="32"
+          >
         </button>
 
         <div
@@ -57,95 +63,147 @@
           :class="controlsTheme"
         >
           <div class="controls-header">
+            <img
+              src="/logo-128.png"
+              alt=""
+              width="32"
+              height="32"
+            >
             <h3>Kishin Trails</h3>
             <button
-              class="controls-close"
+              class="icon-button"
+              aria-label="Log out"
+              title="Log out"
+              @click="handleLogout"
+            >
+              <ion-icon
+                :icon="logOutOutline"
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              class="icon-button"
+              aria-label="Close the panel"
+              title="Close the panel"
               @click="showControls = false"
             >
-              ✕
+              <ion-icon
+                :icon="closeOutline"
+                aria-hidden="true"
+              />
             </button>
           </div>
 
-          <div class="map-style-select">
-            <select v-model="mapStyle">
-              <option value="standard">
-                Standard
-              </option>
-              <option value="ukiyo-e">
-                Ukiyo-e
-              </option>
-              <option value="ukiyo-toner">
-                Ukiyo Toner
-              </option>
-            </select>
-          </div>
+          <nav
+            class="controls-nav"
+            aria-label="Pages"
+          >
+            <router-link to="/athlete">
+              <ion-icon
+                :icon="walkOutline"
+                aria-hidden="true"
+              />
+              Athlete
+            </router-link>
+            <router-link to="/plan">
+              <ion-icon
+                :icon="calendarOutline"
+                aria-hidden="true"
+              />
+              Plan
+            </router-link>
+          </nav>
 
-          <div class="toggles">
-            <label class="toggle-item">
-              <input
-                v-model="showPerlin"
-                type="checkbox"
-              >
-              <span>Perlin Noise</span>
+          <PanelGroup
+            id="map"
+            title="Map"
+          >
+            <label class="map-style-select">
+              <span>Style</span>
+              <select v-model="mapStyle">
+                <option value="standard">
+                  Standard
+                </option>
+                <option value="ukiyo-e">
+                  Ukiyo-e
+                </option>
+                <option value="ukiyo-toner">
+                  Ukiyo Toner
+                </option>
+              </select>
             </label>
-            <label class="toggle-item">
-              <input
-                v-model="showFog"
-                type="checkbox"
-                :disabled="!filterByExplored"
-              >
-              <span>Fog Overlay</span>
-            </label>
-            <div
-              v-if="showFog && filterByExplored"
-              class="fog-mode-radios"
-            >
+          </PanelGroup>
+
+          <PanelGroup
+            id="overlays"
+            title="Overlays"
+          >
+            <div class="toggles">
               <label class="toggle-item">
                 <input
-                  v-model="fogMode"
-                  type="radio"
-                  value="flat"
+                  v-model="showPerlin"
+                  type="checkbox"
                 >
-                <span>Flat</span>
+                <span>Perlin Noise</span>
               </label>
               <label class="toggle-item">
                 <input
-                  v-model="fogMode"
-                  type="radio"
-                  value="gradient"
+                  v-model="showFog"
+                  type="checkbox"
+                  :disabled="!filterByExplored"
                 >
-                <span>Gradient</span>
+                <span>Fog Overlay</span>
+              </label>
+              <div
+                v-if="showFog && filterByExplored"
+                class="fog-mode-radios"
+              >
+                <label class="toggle-item">
+                  <input
+                    v-model="fogMode"
+                    type="radio"
+                    value="flat"
+                  >
+                  <span>Flat</span>
+                </label>
+                <label class="toggle-item">
+                  <input
+                    v-model="fogMode"
+                    type="radio"
+                    value="gradient"
+                  >
+                  <span>Gradient</span>
+                </label>
+              </div>
+              <label class="toggle-item">
+                <input
+                  v-model="showPoi"
+                  type="checkbox"
+                >
+                <span>POI Overlay</span>
+              </label>
+              <label class="toggle-item">
+                <input
+                  v-model="filterByExplored"
+                  type="checkbox"
+                >
+                <span>Explore Mode</span>
+              </label>
+              <label class="toggle-item">
+                <input
+                  v-model="showTileSelect"
+                  type="checkbox"
+                >
+                <span>Tile Selection</span>
               </label>
             </div>
-            <label class="toggle-item">
-              <input
-                v-model="showPoi"
-                type="checkbox"
-              >
-              <span>POI Overlay</span>
-            </label>
-            <label class="toggle-item">
-              <input
-                v-model="filterByExplored"
-                type="checkbox"
-              >
-              <span>Explore Mode</span>
-            </label>
-            <label class="toggle-item">
-              <input
-                v-model="showTileSelect"
-                type="checkbox"
-              >
-              <span>Tile Selection</span>
-            </label>
-          </div>
+          </PanelGroup>
 
-          <div
+          <PanelGroup
             v-if="showPerlin"
-            class="perlin-controls"
+            id="perlin"
+            title="Perlin noise"
           >
-            <h4>Perlin Noise Settings</h4>
-
             <div class="input-group">
               <label>
                 <span>Scale</span>
@@ -200,11 +258,12 @@
                 Active cells: {{ PERLIN_ACTIVE_CELLS }}
               </div>
             </div>
-          </div>
+          </PanelGroup>
 
-          <div
+          <PanelGroup
             v-if="showTileSelect"
-            class="tile-select-controls"
+            id="tiles"
+            title="Tile selection"
           >
             <div class="stat-item">
               Selected: {{ selectedCells.length }} cells
@@ -261,36 +320,19 @@
                 Validate Selection
               </button>
             </div>
-          </div>
+          </PanelGroup>
 
-          <div class="stats">
+          <PanelGroup
+            id="stats"
+            title="Stats"
+          >
             <div class="stat-item">
               Explored: {{ visitedCells.size }}
             </div>
             <div class="stat-item">
               Visible Explored: {{ visibleExplored.length }}
             </div>
-          </div>
-
-          <router-link
-            to="/athlete"
-            class="btn-athlete"
-          >
-            Athlete data
-          </router-link>
-          <router-link
-            to="/plan"
-            class="btn-athlete"
-          >
-            Training plan
-          </router-link>
-
-          <button
-            class="btn-logout"
-            @click="handleLogout"
-          >
-            Logout
-          </button>
+          </PanelGroup>
         </div>
       </div>
     </ion-content>
@@ -311,7 +353,8 @@
 
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { IonPage, IonContent } from '@ionic/vue';
+import { IonPage, IonContent, IonIcon } from '@ionic/vue';
+import { calendarOutline, closeOutline, logOutOutline, walkOutline } from 'ionicons/icons';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { addTonerPatterns } from '@/styles/ukiyoeToner';
@@ -325,7 +368,10 @@ import { useTrailTracker } from '@/composables/useTrailTracker';
 import { logout } from '@/services/authService';
 import { saveMapStyle, loadMapStyle, styleToThemeClass } from '@/services/mapStyleService';
 import GpsTracker from '@/components/GpsTracker.vue';
+import PanelGroup from '@/components/PanelGroup.vue';
 import { randomColor } from '@/utils/color';
+import { MAP_CENTER } from '@/utils/mapCenter';
+import { isNarrowScreen } from '@/utils/screen';
 import { cellFromLatLng, cellToToken } from '@/utils/s2Utils';
 import type { PerlinConfig, TileGroup } from '@/types/perlinConfig';
 
@@ -339,7 +385,6 @@ const PERLIN_OCTAVES = ref(3);
 const PERLIN_AMPLITUDE_DECAY = ref(0.5);
 const PERLIN_ACTIVE_CELLS = ref(0);
 
-const MAP_CENTER: [number, number] = [2.345938844267552, 48.85542074268142];
 const MAP_ZOOM = 16;
 
 const mapContainer = ref<HTMLElement | null>(null);
@@ -349,13 +394,13 @@ const marker = shallowRef<maplibregl.Marker | undefined>(undefined);
 const fogCenter = computed(() =>
   lastPosition.value
     ? { lat: lastPosition.value.latitude, lng: lastPosition.value.longitude }
-    : { lat: MAP_CENTER[1], lng: MAP_CENTER[0] }
+    : MAP_CENTER
 );
 
 const showFog = ref(true);
 const fogMode = ref<'flat' | 'gradient'>('flat');
 const mapStyle = ref(loadMapStyle());
-const showControls = ref(window.innerWidth >= 768);
+const showControls = ref(!isNarrowScreen());
 const showPoi = ref(true);
 const showPerlin = ref(false);
 const showTileSelect = ref(false);
@@ -463,7 +508,7 @@ const initMap = (): void => {
   map.value = new maplibregl.Map({
     container: mapContainer.value,
     style: STYLE_MAP[mapStyle.value],
-    center: MAP_CENTER,
+    center: [MAP_CENTER.lng, MAP_CENTER.lat],
     zoom: MAP_ZOOM,
   });
 
@@ -572,8 +617,6 @@ const clearAllGroupCells = () => {
   --c-btn-validate-h:   #219a52;
   --c-btn-clear:        #e74c3c;
   --c-btn-clear-h:      #c0392b;
-  --c-btn-logout:       #95a5a6;
-  --c-btn-logout-h:     #7f8c8d;
 }
 
 /* ukiyo-e palette: washi paper / sumi ink / prussian blue / ochre / parchment */
@@ -594,8 +637,6 @@ const clearAllGroupCells = () => {
   --c-btn-validate-h:   #3A5570;
   --c-btn-clear:        #8B6914;
   --c-btn-clear-h:      #6B4F10;
-  --c-btn-logout:       #6B5A3E;
-  --c-btn-logout-h:     #4E4230;
 }
 
 /* ── Map layout ────────────────────────────────────────────────────────────── */
@@ -622,7 +663,11 @@ const clearAllGroupCells = () => {
   border: 1px solid var(--c-panel-border);
   box-shadow: var(--c-box-shadow);
   z-index: 2;
-  max-width: 300px;
+  width: 280px;
+  max-width: calc(100% - 40px);
+  max-height: calc(100% - 40px);
+  overflow-y: auto;
+  box-sizing: border-box;
   transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
 }
 
@@ -631,15 +676,16 @@ const clearAllGroupCells = () => {
   top: 20px;
   left: 20px;
   z-index: 2;
-  width: 40px;
-  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border: 1px solid var(--c-panel-border);
-  border-radius: 6px;
+  border-radius: 50%;
   background: var(--c-bg);
-  color: var(--c-text);
   box-shadow: var(--c-box-shadow);
-  font-size: 18px;
-  line-height: 1;
   cursor: pointer;
   transition: background-color 0.3s, border-color 0.3s;
 }
@@ -647,46 +693,80 @@ const clearAllGroupCells = () => {
 .controls-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 15px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .controls-header h3 {
+  flex: 1;
   margin: 0;
   font-size: 16px;
+  font-weight: 700;
   color: var(--c-text);
 }
 
-.controls-close {
-  background: none;
+.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: none;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
+  border-radius: 50%;
+  background: none;
   color: var(--c-text-muted);
-  padding: 2px 5px;
-  border-radius: 3px;
+  font-size: 18px;
+  cursor: pointer;
 }
 
-.controls-close:hover {
+.icon-button:hover {
   color: var(--c-text);
   background: var(--c-divider);
 }
 
-.toggles {
-  margin-bottom: 15px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid var(--c-divider);
+.controls-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.controls-nav a {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid var(--c-input-border);
+  border-radius: 6px;
+  background: var(--c-bg-input);
+  color: var(--c-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.controls-nav a:hover {
+  border-color: var(--c-accent);
+}
+
+.controls-nav ion-icon {
+  font-size: 16px;
+  color: var(--c-accent);
 }
 
 .map-style-select {
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--c-divider);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--c-text-sub);
 }
 
 .map-style-select select {
-  width: 100%;
+  flex: 1;
   padding: 6px 8px;
   border: 1px solid var(--c-input-border);
   border-radius: 4px;
@@ -710,22 +790,59 @@ const clearAllGroupCells = () => {
   padding: 4px 0;
 }
 
-.toggle-item input[type="checkbox"],
 .toggle-item input[type="radio"] {
   cursor: pointer;
   accent-color: var(--c-accent);
 }
 
-.perlin-controls {
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid var(--c-divider);
+/* Checkboxes drawn as switches; the switch sits after the label text */
+.toggle-item:has(input[type="checkbox"]) {
+  flex-direction: row-reverse;
+  justify-content: space-between;
 }
 
-.perlin-controls h4 {
-  margin: 0 0 10px 0;
-  font-size: 14px;
-  color: var(--c-text);
+.toggle-item input[type="checkbox"] {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 18px;
+  margin: 0;
+  border-radius: 9px;
+  background: var(--c-input-border);
+  appearance: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.toggle-item input[type="checkbox"]::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--c-bg-input);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+
+.toggle-item input[type="checkbox"]:checked {
+  background: var(--c-accent);
+}
+
+.toggle-item input[type="checkbox"]:checked::before {
+  transform: translateX(14px);
+}
+
+.toggle-item input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+.toggle-item:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .input-group {
@@ -760,12 +877,6 @@ const clearAllGroupCells = () => {
 .input-group .toggle-item {
   margin: 0;
   padding: 0;
-}
-
-.tile-select-controls {
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid var(--c-divider);
 }
 
 .button-group {
@@ -879,45 +990,6 @@ const clearAllGroupCells = () => {
 
 .btn-select-groups:hover {
   background-color: var(--c-btn-validate-h);
-}
-
-.btn-logout {
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  background-color: var(--c-btn-logout);
-  color: var(--c-text-btn);
-  margin-top: 15px;
-}
-
-.btn-logout:hover {
-  background-color: var(--c-btn-logout-h);
-}
-
-.btn-athlete {
-  display: block;
-  margin-top: 15px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  text-align: center;
-  text-decoration: none;
-  background-color: var(--c-btn-validate);
-  color: var(--c-text-btn);
-}
-
-.btn-athlete:hover {
-  background-color: var(--c-btn-validate-h);
-}
-
-.stats {
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid var(--c-divider);
 }
 
 .stat-item {

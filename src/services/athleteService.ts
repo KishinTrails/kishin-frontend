@@ -161,6 +161,17 @@ export class AthleteApiError extends Error {
     }
 }
 
+/**
+ * The sentence an athlete page shows for a failed request.
+ *
+ * @param error - What the request threw
+ * @returns The sentence for 503 (health database not configured), or a general one
+ */
+export const athleteErrorText = (error: unknown): string =>
+    error instanceof AthleteApiError && error.status === 503
+        ? "Health data is not configured on the server."
+        : "Could not load the data.";
+
 /** Query parameters; undefined and null values are left out. */
 type Params = Record<string, string | number | null | undefined>;
 

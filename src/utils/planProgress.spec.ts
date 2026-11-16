@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { PlanProgress, PlanTraining, PlanWeek } from "@/services/planService";
-import { completionCounts, longRunTarget, trainingLabel, weeklySeries } from "./planProgress";
+import {
+    completionCounts, longRunTarget, rpeWord, trainingLabel, weekLeft, weeklySeries, weekRange,
+} from "./planProgress";
 
 let nextId = 1;
 
@@ -64,5 +66,27 @@ describe("planProgress", () => {
         expect([series.distance.recorded, series.time.recorded, series.longest.recorded]).toEqual([
             [null, null, null], [null, null, null], [null, null, null],
         ]);
+    });
+
+    it("names each RPE value", () => {
+        expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(rpeWord)).toEqual([
+            "very easy", "very easy", "easy", "easy", "moderate", "moderate", "hard", "hard", "very hard", "max",
+        ]);
+    });
+
+    it("writes a week's range as short as the dates allow", () => {
+        expect(weekRange("2026-11-02", "2026-11-08")).toBe("2–8 Nov");
+        expect(weekRange("2026-10-26", "2026-11-01")).toBe("26 Oct – 1 Nov");
+        expect(weekRange("2025-12-29", "2026-01-04")).toBe("29 Dec 2025 – 4 Jan 2026");
+    });
+
+    it("says what is left of the week on a day of it", () => {
+        const current = week(1, 12, [true, false, false], null);
+        const left = weekLeft(current, "2026-01-09");
+        expect(left?.days).toBe(3);
+        expect(left?.trainings.map((t) => t.type)).toEqual(["FUNDAMENTAL_RUN", "YOGA"]);
+        expect(weekLeft(current, "2026-01-11")?.days).toBe(1);
+        expect(weekLeft(current, "2026-01-12")).toBeNull();
+        expect(weekLeft(current, "2026-01-04")).toBeNull();
     });
 });

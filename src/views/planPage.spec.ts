@@ -55,11 +55,56 @@ describe('PlanPage', () => {
     await flushPromises();
     expect(wrapper.find('h1').text()).toBe('Example Plan');
     expect(wrapper.find('.subtitle').text()).toContain('Week 2 of 2');
-    expect(wrapper.find('h2').text()).toContain('Week 2 · PEAK');
+    expect(wrapper.find('h2').text()).toBe('Week 2 · Peak');
+    expect(wrapper.find('.week-nav .dates').text()).toBe('12–18 Jan');
     expect(wrapper.findAll('.card-stub').map((card) => card.text())).toEqual(['EXPLORATORY_LONG_RUN', 'YOGA']);
-    expect(wrapper.find('.stats').text()).toContain('All trainings2/4');
+    expect(wrapper.find('.overall-count').text()).toBe('2/4 done');
+    expect(wrapper.findAll('.progress-ring figcaption').map((ring) => ring.text())).toEqual(['Long run', 'Yoga']);
     expect(wrapper.find('.line-chart').exists()).toBe(true);
-    expect(wrapper.findAll('.week-timeline tbody tr')).toHaveLength(2);
+    expect(wrapper.findAll('.week-timeline .week-row')).toHaveLength(2);
+  });
+
+  it('moves between weeks with the arrows, and back to this week', async () => {
+    mocked.fetchPlan.mockResolvedValue(plan(2));
+    const wrapper = mount(PlanPage, { global: { stubs } });
+    await flushPromises();
+    const [previous, next] = wrapper.findAll('.nav-arrow');
+    expect(next!.attributes('disabled')).toBeDefined();
+    await previous!.trigger('click');
+    expect(wrapper.find('h2').text()).toBe('Week 1 · Base');
+    expect(previous!.attributes('disabled')).toBeDefined();
+    await wrapper.find('.today-button').trigger('click');
+    expect(wrapper.find('h2').text()).toBe('Week 2 · Peak');
+  });
+
+  it('changes the week with a horizontal swipe, not a vertical one', async () => {
+    mocked.fetchPlan.mockResolvedValue(plan(2));
+    const wrapper = mount(PlanPage, { global: { stubs } });
+    await flushPromises();
+    const card = wrapper.find('.week-card');
+    const swipe = async (dx: number, dy: number) => {
+      await card.trigger('touchstart', { changedTouches: [{ clientX: 200, clientY: 200 }] });
+      await card.trigger('touchend', { changedTouches: [{ clientX: 200 + dx, clientY: 200 + dy }] });
+    };
+    await swipe(30, 120);
+    expect(wrapper.find('h2').text()).toBe('Week 2 · Peak');
+    await swipe(100, 10);
+    expect(wrapper.find('h2').text()).toBe('Week 1 · Base');
+    await swipe(-100, 10);
+    expect(wrapper.find('h2').text()).toBe('Week 2 · Peak');
+  });
+
+  it('says what is left today in the current week', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 0, 16, 12));
+    try {
+      mocked.fetchPlan.mockResolvedValue(plan(2));
+      const wrapper = mount(PlanPage, { global: { stubs } });
+      await flushPromises();
+      expect(wrapper.find('.today-line').text()).toBe('Today, Fri 16 Jan · 3 days left: Long run');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('switches the chart between distance, time and longest run', async () => {
@@ -80,8 +125,8 @@ describe('PlanPage', () => {
     mocked.fetchPlan.mockResolvedValue(plan(2));
     const wrapper = mount(PlanPage, { global: { stubs } });
     await flushPromises();
-    await wrapper.findAll('.week-timeline tbody button')[0]!.trigger('click');
-    expect(wrapper.find('h2').text()).toContain('Week 1 · BASE');
+    await wrapper.findAll('.week-timeline .week-row')[0]!.trigger('click');
+    expect(wrapper.find('h2').text()).toBe('Week 1 · Base');
   });
 
   it('selects week 1 before the plan starts', async () => {

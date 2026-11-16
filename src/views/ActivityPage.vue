@@ -1,155 +1,175 @@
 <template>
-  <ion-page>
-    <ion-content :fullscreen="true">
-      <div
-        class="athlete"
-        :class="theme"
-      >
-        <header class="page-header">
-          <router-link
-            to="/athlete"
-            class="back"
-          >
-            ← Athlete
-          </router-link>
-        </header>
-
-        <p
-          v-if="error"
-          class="card error"
-        >
-          {{ error }}
-        </p>
-        <p
-          v-else-if="!detail"
-          class="card loading"
-        >
-          Loading the activity…
-        </p>
-
-        <template v-else>
-          <section class="card">
-            <h1>{{ title }}</h1>
-            <p class="subtitle">
-              {{ formatDateTime(detail.start_time) }}
-              <span v-if="detail.name && detail.sport"> · {{ [detail.sport, detail.sub_sport].filter(Boolean).join(' / ') }}</span>
-            </p>
-            <dl class="headline">
-              <div
-                v-for="item in headline"
-                :key="item.label"
-              >
-                <dt>{{ item.label }}</dt>
-                <dd>{{ item.value }}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section
-            v-if="track && track.bbox"
-            class="card"
-          >
-            <ActivityMap :track="track" />
-          </section>
-
-          <section
-            v-if="records && recordX"
-            class="card"
-          >
-            <div class="two-columns">
-              <LineChart
-                title="Altitude"
-                :x="recordX.values"
-                :series="[{ name: 'Altitude', values: records.altitude_m }]"
-                :format-x="recordX.format"
-                :format-y="(value) => `${Math.round(value)} m`"
-              />
-              <LineChart
-                title="Heart rate"
-                :x="recordX.values"
-                :series="[{ name: 'Heart rate', values: records.hr }]"
-                :format-x="recordX.format"
-                :format-y="(value) => `${Math.round(value)} bpm`"
-              />
-              <LineChart
-                title="Pace"
-                :x="recordX.values"
-                :series="[{ name: 'Pace', values: recordPace }]"
-                :format-x="recordX.format"
-                :format-y="formatPace"
-                invert
-              />
-              <LineChart
-                title="Cadence"
-                :x="recordX.values"
-                :series="[{ name: 'Cadence', values: records.cadence }]"
-                :format-x="recordX.format"
-                :format-y="(value) => `${Math.round(value)}`"
-              />
-            </div>
-          </section>
-
-          <div class="two-columns wide">
-            <section class="card">
-              <HrZones :zones="detail.hr_zones" />
-            </section>
-            <section
-              v-if="runningFields.length"
-              class="card"
-            >
-              <h2>Running details</h2>
-              <dl class="fields">
-                <div
-                  v-for="item in runningFields"
-                  :key="item.label"
-                >
-                  <dt>{{ item.label }}</dt>
-                  <dd>{{ item.value }}</dd>
-                </div>
-              </dl>
-            </section>
-          </div>
-
-          <section
-            v-if="detail.laps.length"
-            class="card"
-          >
-            <LapTable :laps="detail.laps" />
-          </section>
-
-          <section class="card">
-            <h2>All fields</h2>
-            <dl class="fields">
-              <div
-                v-for="item in otherFields"
-                :key="item.label"
-              >
-                <dt>{{ item.label }}</dt>
-                <dd>{{ item.value }}</dd>
-              </div>
-            </dl>
-          </section>
-        </template>
+  <AppShell
+    title="Activity"
+    section="athlete"
+    :crumbs="crumbs"
+  >
+    <p
+      v-if="error"
+      class="card error"
+    >
+      {{ error }}
+    </p>
+    <section
+      v-else-if="!detail"
+      class="card"
+    >
+      <SkeletonBlock :lines="2" />
+      <div class="headline skeleton-tiles">
+        <SkeletonBlock
+          v-for="index in 4"
+          :key="index"
+          height="58px"
+        />
       </div>
-    </ion-content>
-  </ion-page>
+    </section>
+
+    <template v-else>
+      <nav
+        class="neighbours"
+        aria-label="Other activities"
+      >
+        <router-link
+          v-if="neighbours.previous"
+          :to="`/athlete/activities/${neighbours.previous.activity_id}`"
+          class="neighbour previous"
+        >
+          <span class="neighbour-direction">‹ Previous</span>
+          <span class="neighbour-name">{{ neighbourText(neighbours.previous) }}</span>
+        </router-link>
+        <span v-else />
+        <router-link
+          v-if="neighbours.next"
+          :to="`/athlete/activities/${neighbours.next.activity_id}`"
+          class="neighbour next"
+        >
+          <span class="neighbour-direction">Next ›</span>
+          <span class="neighbour-name">{{ neighbourText(neighbours.next) }}</span>
+        </router-link>
+      </nav>
+
+      <section class="card">
+        <h1>{{ title }}</h1>
+        <p class="subtitle">
+          {{ formatDateTime(detail.start_time) }}
+          <span v-if="detail.name && detail.sport"> · {{ [detail.sport, detail.sub_sport].filter(Boolean).join(' / ') }}</span>
+        </p>
+        <dl class="headline">
+          <div
+            v-for="item in headline"
+            :key="item.label"
+            class="tile"
+          >
+            <dt>{{ item.label }}</dt>
+            <dd>{{ item.value }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section
+        v-if="track && track.bbox"
+        class="card"
+      >
+        <ActivityMap :track="track" />
+      </section>
+
+      <section
+        v-if="records && recordX"
+        class="card"
+      >
+        <div class="two-columns">
+          <LineChart
+            title="Altitude"
+            :x="recordX.values"
+            :series="[{ name: 'Altitude', values: records.altitude_m }]"
+            :format-x="recordX.format"
+            :format-y="(value) => `${Math.round(value)} m`"
+          />
+          <LineChart
+            title="Heart rate"
+            :x="recordX.values"
+            :series="[{ name: 'Heart rate', values: records.hr }]"
+            :format-x="recordX.format"
+            :format-y="(value) => `${Math.round(value)} bpm`"
+          />
+          <LineChart
+            title="Pace"
+            :x="recordX.values"
+            :series="[{ name: 'Pace', values: recordPace }]"
+            :format-x="recordX.format"
+            :format-y="formatPace"
+            invert
+          />
+          <LineChart
+            title="Cadence"
+            :x="recordX.values"
+            :series="[{ name: 'Cadence', values: records.cadence }]"
+            :format-x="recordX.format"
+            :format-y="(value) => `${Math.round(value)}`"
+          />
+        </div>
+      </section>
+
+      <div class="two-columns wide">
+        <section class="card">
+          <HrZones :zones="detail.hr_zones" />
+        </section>
+        <section
+          v-if="runningFields.length"
+          class="card"
+        >
+          <h2>Running details</h2>
+          <dl class="fields">
+            <div
+              v-for="item in runningFields"
+              :key="item.label"
+            >
+              <dt>{{ item.label }}</dt>
+              <dd>{{ item.value }}</dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+
+      <section
+        v-if="detail.laps.length"
+        class="card"
+      >
+        <LapTable :laps="detail.laps" />
+      </section>
+
+      <section class="card">
+        <h2>All fields</h2>
+        <dl class="fields">
+          <div
+            v-for="item in otherFields"
+            :key="item.label"
+          >
+            <dt>{{ item.label }}</dt>
+            <dd>{{ item.value }}</dd>
+          </div>
+        </dl>
+      </section>
+    </template>
+  </AppShell>
 </template>
 
 <script setup lang="ts">
 /**
  * ActivityPage.vue — One activity with everything the API has on it: summary, map of the GPS
  * track, record charts (altitude, heart rate, pace, cadence), heart rate zones, running details,
- * laps and the remaining fields. Fields without a value are left out.
- * Does not own: the list of activities (see `AthletePage.vue`) or any write to the data.
+ * laps and the remaining fields. Fields without a value are left out. Links lead to the
+ * activities just before and after it by start time.
+ * Does not own: the list of activities (see `AthleteActivitiesPage.vue`) or any write to the data.
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { IonContent, IonPage } from '@ionic/vue';
-import '@/theme/athlete.css';
+import AppShell, { type Crumb } from '@/components/AppShell.vue';
 import ActivityMap from '@/components/athlete/ActivityMap.vue';
 import HrZones from '@/components/athlete/HrZones.vue';
 import LapTable from '@/components/athlete/LapTable.vue';
 import LineChart from '@/components/athlete/LineChart.vue';
+import SkeletonBlock from '@/components/SkeletonBlock.vue';
 import {
   AthleteApiError,
   fetchActivity,
@@ -157,9 +177,10 @@ import {
   fetchTrack,
   type ActivityDetail,
   type Records,
+  type ActivitySummary,
   type Track,
 } from '@/services/athleteService';
-import { loadMapStyle, styleToThemeClass } from '@/services/mapStyleService';
+import { fetchNeighbours, type Neighbours } from '@/services/activityNeighbours';
 import {
   formatDateTime,
   formatDuration,
@@ -172,19 +193,35 @@ import {
 /** Below this speed the watch is taken as stopped, and no pace is drawn. */
 const MIN_SPEED_KMH = 2;
 
-const theme = styleToThemeClass(loadMapStyle());
 const route = useRoute();
 
 const detail = ref<ActivityDetail | null>(null);
 const track = ref<Track | null>(null);
 const records = ref<Records | null>(null);
 const error = ref('');
+const neighbours = ref<Neighbours>({ previous: null, next: null });
+
+/**
+ * Text of a previous / next link.
+ *
+ * @param activity - The other activity
+ * @returns Its name (or sport) and start time
+ */
+const neighbourText = (activity: ActivitySummary): string =>
+  [activity.name ?? activity.sport ?? activity.activity_id, formatDateTime(activity.start_time)].join(' · ');
 
 const title = computed(() => {
   const activity = detail.value;
   if (!activity) return '';
   return activity.name || [activity.sport, activity.sub_sport].filter(Boolean).join(' / ') || activity.activity_id;
 });
+
+/** Athlete › the activity's name and date, once it is loaded. */
+const crumbs = computed<Crumb[]>(() => [
+  { label: 'Athlete', to: '/athlete' },
+  { label: 'Activities', to: '/athlete/activities' },
+  { label: detail.value ? `${title.value} · ${formatDateTime(detail.value.start_time)}` : 'Activity' },
+]);
 
 /** One labelled value of a definition list. */
 interface Field {
@@ -287,8 +324,21 @@ const recordPace = computed(() =>
   ),
 );
 
-onMounted(async () => {
-  const id = String(route.params.id);
+/** The id of the activity shown, so a change of the route's id loads the new one. */
+let loadedId: string | null = null;
+
+/**
+ * Loads an activity, then its track, records and neighbours.
+ *
+ * @param id - The activity id
+ */
+async function load(id: string): Promise<void> {
+  loadedId = id;
+  detail.value = null;
+  track.value = null;
+  records.value = null;
+  error.value = '';
+  neighbours.value = { previous: null, next: null };
   try {
     detail.value = await fetchActivity(id);
   } catch (caught) {
@@ -300,42 +350,32 @@ onMounted(async () => {
           : 'Could not load the activity.';
     return;
   }
-  const [trackResult, recordsResult] = await Promise.allSettled([fetchTrack(id), fetchRecords(id)]);
+  const [trackResult, recordsResult, neighboursResult] = await Promise.allSettled([
+    fetchTrack(id),
+    fetchRecords(id),
+    fetchNeighbours(id, detail.value.start_time),
+  ]);
+  if (loadedId !== id) return;
   if (trackResult.status === 'fulfilled') track.value = trackResult.value;
   if (recordsResult.status === 'fulfilled') records.value = recordsResult.value;
-});
+  if (neighboursResult.status === 'fulfilled') neighbours.value = neighboursResult.value;
+}
+
+// Ionic may keep this page and change only the id when a previous / next link is followed. The
+// route also changes when another page opens; only an Activity route with a new id loads.
+watch(
+  () => [route.name, route.params.id],
+  () => {
+    const id = route.params.id;
+    if (route.name === 'Activity' && typeof id === 'string' && id !== loadedId) {
+      void load(id);
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
-.athlete {
-  min-height: 100%;
-  padding: 16px;
-  background: var(--c-page-bg);
-  color: var(--c-text);
-}
-
-.page-header {
-  max-width: 1100px;
-  margin: 0 auto 12px;
-}
-
-.back {
-  color: var(--c-link);
-}
-
-.theme-ukiyo .back {
-  color: var(--c-card-bg);
-}
-
-.card {
-  max-width: 1100px;
-  margin: 0 auto 16px;
-  padding: 14px 16px;
-  background: var(--c-card-bg);
-  border: 1px solid var(--c-card-border);
-  border-radius: 8px;
-}
-
 h1 {
   margin: 0;
   font-size: 1.4rem;
@@ -352,21 +392,78 @@ h2 {
 }
 
 .headline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 28px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
   margin: 0;
+}
+
+.skeleton-tiles {
+  margin-top: 14px;
+}
+
+.tile {
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--c-accent) 6%, transparent);
 }
 
 .headline dt {
   color: var(--c-muted);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .headline dd {
-  margin: 0;
-  font-size: 1.2rem;
+  margin: 2px 0 0;
+  font-size: 1.3rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.neighbours {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1100px;
+  margin: 0 auto 12px;
+}
+
+.neighbour {
+  display: flex;
+  flex-direction: column;
+  max-width: 48%;
+  padding: 6px 12px;
+  border: 1px solid var(--c-card-border);
+  border-radius: 8px;
+  background: var(--c-card-bg);
+  color: var(--c-text);
+  text-decoration: none;
+}
+
+.neighbour:hover {
+  border-color: var(--c-accent);
+}
+
+.neighbour.next {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.neighbour-direction {
+  color: var(--c-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.neighbour-name {
+  overflow: hidden;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .two-columns {
@@ -407,13 +504,5 @@ h2 {
   margin: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
-}
-
-.error {
-  color: var(--c-accent-2);
-}
-
-.loading {
-  color: var(--c-muted);
 }
 </style>

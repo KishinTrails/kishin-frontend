@@ -45,3 +45,6 @@ android/.settings/
 android/app/.classpath
 android/app/.project
 android/app/.settings/
+
+# Perlin / tile selection configs (the map panel's "Load Config") list real S2 cells
+perlin_config*.json

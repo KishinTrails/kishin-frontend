@@ -189,6 +189,10 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push and pull
 Configure via a `.env` file in the project root:
 
 - `VITE_API_BASE` — Base URL of the kishin-api backend (e.g. `http://localhost:8000`)
+- `VITE_DEFAULT_CENTER_LAT`, `VITE_DEFAULT_CENTER_LON` — Where the map opens before a GPS
+  position is known, in degrees. Central Paris when either is missing or invalid. Vite writes
+  the values into the built JavaScript, so the built app contains them; `.env` itself is
+  git-ignored.
 - `BASE_URL` — App base path, used by the router in production deployments
 
 ## 🧪 Quality and Testing
