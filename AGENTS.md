@@ -1,19 +1,19 @@
 # Kishin Frontend - Developer Guide for Agents
 
 ## Project Overview
-Vue 3/Ionic mobile frontend for the Kishin project. Communicates with the kishin-api backend for OSM trail data, user authentication, and geo-spatial operations.
+Vue 3/Ionic mobile frontend for the Kishin project: the fog-of-war map, the athlete pages, the
+training plan page and, in the Android app, GPS tracking. README.md lists the features, the
+API routes it calls and the environment variables.
 
 ## Relationship with kishin-api
 
 The frontend consumes the kishin-api REST API. Key integration points:
-- **Base URL**: Configure via environment or proxy in `vite.config.ts`
-- **Authentication**: JWT tokens stored in localStorage/sessionStorage
-- **API Endpoints**:
-  - `POST /auth/register` - User registration
-  - `POST /auth/token` - Login (get JWT)
-  - `GET /auth/me` - Get current user
-  - `GET /elements/nearest` - Get nearest trail elements
-  - `GET /elements/bbox` - Get elements in bounding box
+- **Base URL**: `VITE_API_BASE` in `.env`; each service module in `src/services/` builds its
+  URLs from it
+- **Authentication**: `POST /auth/login` for the single account; the JWT is kept in
+  localStorage (`authService.ts`). A 401 from a protected route deletes it and returns to the
+  login page
+- **API prefixes**: `/auth`, `/poi`, `/trails`, `/noise`, `/athlete`, `/plan`
 - **Headers**: Include `Authorization: Bearer <token>` for protected routes
 
 ## Build & Test Commands
@@ -36,11 +36,6 @@ npx vue-tsc --noEmit
 **Run unit tests:**
 ```bash
 npm run test:unit
-```
-
-**Run e2e tests:**
-```bash
-npm run test:e2e
 ```
 
 **Lint:**
@@ -67,15 +62,18 @@ npm install
 - Keep components small and focused
 
 ### Naming Conventions
-- Components: PascalCase (`HomePage.vue`, `TrailList.vue`)
-- Composables: camelCase, use prefix `use` (`useAuth.ts`, `useTrail.ts`)
+- Components and views: PascalCase files (`MapPage.vue`, `TrainingCard.vue`)
+- Composables: camelCase with the prefix `use` (`useTrailMap.ts`, `useTrailTracker.ts`)
+- Services and utilities: camelCase files (`authService.ts`, `planProgress.ts`)
 - Types/Interfaces: PascalCase
-- Files: kebab-case (`auth-service.ts`, `trail-map.vue`)
+- Tests: next to the file, `<name>.spec.ts`
 
 ### CSS/Styling
-- Use Ionic utility classes first (`ion-padding`, `ion-content`)
 - Scoped styles in components
-- CSS variables in `src/theme/variables.css`
+- Colours come from CSS variables: the pages under `AppShell.vue` read the tokens of
+  `src/theme/pages.css` (`theme-standard` / `theme-ukiyo`, chosen by the map style); the map
+  panel has its own tokens in `MapPage.vue`
+- No serif font for Latin text
 
 ### State Management
 - Use Vue composables for shared state
@@ -93,9 +91,9 @@ npm install
 - Android builds in `android/` directory
 
 ### Testing
-- Vitest for unit tests (`.spec.ts` files in component directories)
-- Cypress for e2e tests (`tests/e2e/`)
-- Mock API calls in tests using Cypress intercept or Vitest mocks
+- Vitest for unit tests (`.spec.ts` files next to the file they test), jsdom environment
+- Mock services and Capacitor plugins with `vi.mock`; jsdom has no `localStorage` here, so
+  tests stub it with `vi.stubGlobal`
 
 ### Git & Version Control
 - Commit messages: concise, imperative mood

@@ -18,13 +18,21 @@ Mobile-first Vue 3 application for exploring and tracking hiking trails with fog
 
 ## Features
 
-- **Interactive Map** - MapLibre GL-based map with OpenStreetMap tiles
-- **Fog of War** - Track explored areas with S2 geospatial indexing
-- **POI Markers** - Display points of interest (peaks, natural areas, industrial zones)
-- **Authentication** - JWT-based login/logout with protected routes
-- **Offline Caching** - LocalStorage persistence for POI data
-- **Mobile Ready** - Ionic Framework UI with Capacitor for Android builds
-- **Dark Mode** - System-aware dark theme support
+- **Map** - MapLibre GL map with three styles (Standard, Ukiyo-e, Ukiyo Toner), fog of war over
+  the unexplored S2 cells, POI markers (peaks, natural areas, industrial zones), and Perlin
+  noise and tile selection overlays for tuning. Its left panel holds the settings in foldable
+  groups
+- **GPS tracking** (Android app) - A native background service records each newly explored S2
+  cell to the API, screen on or off; the panel's Tracking group starts and stops it
+- **Athlete pages** - Overview (activity calendar, distance and moving time per week), Body
+  (fat ratio, muscle mass, weight), Activities (list, and each activity with its map, charts
+  and laps)
+- **Training plan** - Progression of the active plan, week by week, with the completion of
+  each training against a Garmin run
+- **Single account** - JWT login; an expired or refused token leads back to the login page
+- **POI cache** - Cell types kept in localStorage, prefetched once after login
+- **Themes** - The other pages follow the map style: light for Standard, navy and parchment
+  for the two Ukiyo styles
 
 ## Tech Stack
 
@@ -34,7 +42,7 @@ Mobile-first Vue 3 application for exploring and tracking hiking trails with fog
 - **Build**: Vite 7
 - **Map**: MapLibre GL
 - **Geospatial**: S2 (Google's spherical geometry library)
-- **Testing**: Vitest (unit), Cypress (e2e)
+- **Testing**: Vitest
 - **Mobile**: Capacitor 8 (Android)
 
 ## Prerequisites
@@ -98,15 +106,21 @@ This frontend consumes the [kishin-api](https://github.com/KishinTrails/kishin-a
   password change or a new `SECRET_KEY` on the server), the app deletes the token and
   returns to the login page
 
-### Trails
+### Map
 
-- **GET** `/trails/explored` - Get the explored S2 cells (protected)
-- **POST** `/trails/explored` - Log a newly explored S2 cell (protected)
+- **GET** `/trails/explored` - The explored S2 cells
+- **POST** `/trails/explored` - Record a newly explored S2 cell (sent by the Android tracking
+  service)
+- **GET** `/poi/bycell?s2Cell={cell}`, `/poi/bycells?s2Cells=…` - POIs of one or several cells
+- **GET** `/poi/prefetch` - Every tile with an active POI type, for the cache
+- **POST** `/noise/cells` - Perlin noise values, for the noise overlay
 
-### POI (Points of Interest)
+### Athlete and plan
 
-- **GET** `/poi/bycell?s2Cell={cell}` - Get POI for single S2 cell
-- **GET** `/poi/bycells?s2Cells={cell1}&s2Cells={cell2}...` - Batch fetch POIs (up to 100 cells)
+- **GET** `/athlete/activities`, `/athlete/activities/daily`, `/athlete/activities/{id}` (and
+  its `/track` and `/records`), `/athlete/measures`
+- **GET** `/plan` - The active plan's progression
+- **GET** `/plan/trainings/{id}/candidates`, **POST**/**DELETE** `/plan/trainings/{id}/complete`
 
 All protected endpoints require `Authorization: Bearer <token>` header.
 
@@ -115,14 +129,17 @@ All protected endpoints require `Authorization: Bearer <token>` header.
 ### Build Android App
 
 ```bash
-# Sync web assets to Android project
-npx cap sync android
+npm run build:android    # web build, cap sync, then gradlew clean build in android/
+```
 
-# Open in Android Studio
+Or sync the web assets and build from Android Studio:
+
+```bash
+npx cap sync android
 npx cap open android
 ```
 
-Then build the APK from Android Studio.
+The Android `versionName` and `versionCode` come from `version` in `package.json`.
 
 ### Capacitor Configuration
 
@@ -200,7 +217,6 @@ Configure via a `.env` file in the project root:
 Kishin Trails uses **AI-assisted development** tools to accelerate coding, followed by **human validation** and **automated tests** for correctness.
 
 - Vitest for unit tests
-- Cypress for e2e tests
 - ESLint + TypeScript for code quality
 
 ---
